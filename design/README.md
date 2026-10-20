@@ -16,3 +16,5 @@ Shared pieces:
 - **After cleaning:** a toast with *Undo*; the tray offers *Empty Trash* to free the space for good.
 
 Palette: warm paper (`#f5f3ef` / cards `#fbfaf7`) in light, `#141413` / `#1b1b1a` in dark; calm `oklch` tints per category; green for freed space, terracotta for low space.
+
+[`menu-and-modals.html`](menu-and-modals.html) adds the header with the app icon, a light/dark toggle and the ••• menu (8c), and the *How it works* (8e) and *Menu bar* (8f) modals.

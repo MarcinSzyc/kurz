@@ -32,6 +32,8 @@ import { Tray } from "./components/Tray";
 import { MenuBarSettingsPanel } from "./components/MenuBarSettings";
 import { HowItWorks } from "./components/HowItWorks";
 import { HistoryView } from "./components/HistoryView";
+import { MoreMenu, ThemeToggle, type Theme } from "./components/HeaderMenu";
+import icon from "./assets/icon.png";
 import "./fonts.css";
 import "./App.css";
 
@@ -42,13 +44,6 @@ const LOW_FREE = 0.1;
 
 type Status = "idle" | "scanning" | "done";
 type Page = "cleanup" | "map" | "history" | "how";
-type Theme = "auto" | "light" | "dark";
-
-const THEMES: { id: Theme; label: string; icon: string }[] = [
-  { id: "auto", label: "Match macOS", icon: "◐" },
-  { id: "light", label: "Light", icon: "☀" },
-  { id: "dark", label: "Dark", icon: "☾" },
-];
 
 /** A per-device preference, so the browser's storage is enough; it may be unavailable. */
 function storedTheme(): Theme {
@@ -274,9 +269,12 @@ function App() {
     <main className="app">
       <header className="toolbar">
         <div className="title">
-          <div>
-            <h1>Kurz</h1>
-            <p className="muted">{home ?? "Locating home folder…"}</p>
+          <div className="brand">
+            <img src={icon} alt="" className="app-icon" />
+            <div>
+              <h1>Kurz</h1>
+              <p className="muted">{home ?? "Locating home folder…"}</p>
+            </div>
           </div>
           <nav className="segmented tabs">
             {TABS.map((t) => (
@@ -287,19 +285,6 @@ function App() {
           </nav>
         </div>
         <div className="actions">
-          <div className="segmented theme" role="group" aria-label="Appearance">
-            {THEMES.map((t) => (
-              <button key={t.id} className={theme === t.id ? "active" : ""} onClick={() => setTheme(t.id)} title={t.label} aria-label={t.label}>
-                {t.icon}
-              </button>
-            ))}
-          </div>
-          <button className={`ghost ${page === "how" ? "active" : ""}`} onClick={() => setPage(page === "how" ? "cleanup" : "how")}>
-            How it works
-          </button>
-          <button className="ghost" onClick={() => setSettingsOpen(true)} disabled={!menuBar}>
-            Menu bar…
-          </button>
           {disk && (
             <div className="diskbar" title={`${formatBytes(disk.used)} of ${formatBytes(disk.total)} used`}>
               <div className="diskbar-label">
@@ -320,6 +305,8 @@ function App() {
               {scanned ? "Scan again" : "Scan"}
             </button>
           )}
+          <ThemeToggle theme={theme} onTheme={setTheme} />
+          <MoreMenu theme={theme} onTheme={setTheme} onHowItWorks={() => setPage("how")} onMenuBar={() => setSettingsOpen(true)} />
         </div>
       </header>
 
