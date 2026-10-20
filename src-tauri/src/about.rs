@@ -169,7 +169,10 @@ mod tests {
         // Finder is always there, wherever macOS keeps it.
         let o = owner("com.apple.finder");
         assert!(o.installed, "{o:?}");
-        assert!(o.running, "Finder is always running");
+        // CI machines may have no logged-in desktop, so no Finder running.
+        if std::env::var_os("CI").is_none() {
+            assert!(o.running, "Finder is always running");
+        }
     }
 
     #[test]

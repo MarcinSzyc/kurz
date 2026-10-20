@@ -12,6 +12,10 @@
   <i>Kurz</i> is Polish for <i>dust</i>.
 </p>
 
+<p align="center">
+  <a href="https://github.com/MarcinSzyc/kurz/actions/workflows/ci.yml"><img src="https://github.com/MarcinSzyc/kurz/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
+
 ---
 
 ## What it does
@@ -232,6 +236,12 @@ cd src-tauri && cargo test
 ```
 
 ```bash
+pnpm test
+```
+
+The first runs the Rust tests (scanner, rules, cleanup checks, history, icons…); the second the UI logic with [Vitest](https://vitest.dev): how the goal fills the tray, how a folder's risk is decided, how entries replace what they contain.
+
+```bash
 cd src-tauri && cargo clippy --all-targets
 ```
 
@@ -239,7 +249,7 @@ cd src-tauri && cargo clippy --all-targets
 pnpm build
 ```
 
-The last one type-checks and builds the UI.
+The last one type-checks and builds the UI. [CI](.github/workflows/ci.yml) runs all of these on every push, on macOS.
 
 ### Benchmark the scanner from the command line
 

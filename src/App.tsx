@@ -31,7 +31,7 @@ import {
   type TreeNode,
 } from "./lib/api";
 import { formatBytes, formatCount, formatDuration } from "./lib/format";
-import { GB, autoPick, covers, fromFolder, fromRecommendation, sizeOf, type TrayEntry } from "./lib/tray";
+import { GB, addEntry, autoPick, covers, fromFolder, fromRecommendation, sizeOf, type TrayEntry } from "./lib/tray";
 import { CleanUp } from "./components/CleanUp";
 import { MapView } from "./components/MapView";
 import { Tray } from "./components/Tray";
@@ -292,8 +292,9 @@ function App() {
   /** Adds an app or leftover to the tray (replacing what it contains), or takes it out. */
   function toggleEntry(entry: TrayEntry) {
     if (folders.some((f) => f.key === entry.key)) return removeEntry(entry.key);
-    setFolders([...folders.filter((f) => !f.paths.every((p) => covers(entry, p))), entry]);
-    setSelection(selected.filter((id) => !items.find((i) => i.id === id)?.paths.every((p) => covers(entry, p))));
+    const next = addEntry(folders, selected, items, entry);
+    setFolders(next.extras);
+    setSelection(next.selected);
   }
 
   const updateEntry = (entry: TrayEntry) => setFolders(folders.map((f) => (f.key === entry.key ? entry : f)));
@@ -302,10 +303,10 @@ function App() {
     const holder = tray.find((e) => covers(e, n.path));
     if (holder) return removeEntry(holder.key);
     if (!home) return;
-    const entry = fromFolder(n, home, items);
     // The new folder replaces whatever of the tray it contains.
-    setFolders([...folders.filter((f) => !covers(entry, f.paths[0])), entry]);
-    setSelection(selected.filter((id) => !items.find((i) => i.id === id)?.paths.every((p) => covers(entry, p))));
+    const next = addEntry(folders, selected, items, fromFolder(n, home, items));
+    setFolders(next.extras);
+    setSelection(next.selected);
   }
 
   const trayPanel = (onClean: boolean) => (

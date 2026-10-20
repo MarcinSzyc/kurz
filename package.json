@@ -8,7 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "install:app": "sh scripts/install.sh"
+    "install:app": "sh scripts/install.sh",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -24,6 +25,8 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.2",
     "typescript": "~6.0.3",
-    "vite": "^8.0.16"
-  }
+    "vite": "^8.0.16",
+    "vitest": "^5.0.5"
+  },
+  "packageManager": "pnpm@12.14.0"
 }

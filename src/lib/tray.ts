@@ -168,3 +168,14 @@ export const fromLeftover = (l: Leftover): TrayEntry => ({
 
 /** "1 item", "3 items" */
 export const items = (n: number) => `${n} ${n === 1 ? "item" : "items"}`;
+
+/**
+ * Adds an entry to the tray, taking out whatever it already contains so nothing counts twice:
+ * extra entries (map folders, apps, leftovers) and picked recommendations inside it.
+ */
+export function addEntry(extras: TrayEntry[], selected: string[], items: Recommendation[], entry: TrayEntry) {
+  return {
+    extras: [...extras.filter((e) => !e.paths.every((p) => covers(entry, p))), entry],
+    selected: selected.filter((id) => !items.find((i) => i.id === id)?.paths.every((p) => covers(entry, p))),
+  };
+}
