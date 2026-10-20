@@ -1,5 +1,6 @@
 mod about;
 mod access;
+mod apps;
 mod categories;
 pub mod cleanup;
 mod disk;
@@ -405,7 +406,13 @@ fn run_cleanup(app: &AppHandle, items: Vec<CleanRequest>, mode: cleanup::Mode) -
         for path in item.paths {
             let _ = app.emit("cleanup-progress", CleanProgress { done, total, current: path.clone() });
             let p = PathBuf::from(&path);
-            let outcome = cleanup::check(&p, &home).and_then(|_| match mode {
+            // App bundles live outside home and get their own checks; everything else must be in home.
+            let allowed = if p.extension().is_some_and(|e| e == "app") && !p.starts_with(&home) {
+                apps::check_removable(&p, &home)
+            } else {
+                cleanup::check(&p, &home).and_then(|_| if p.extension().is_some_and(|e| e == "app") { apps::check_removable(&p, &home) } else { Ok(()) })
+            };
+            let outcome = allowed.and_then(|_| match mode {
                 cleanup::Mode::Trash => cleanup::move_to_trash(&p).map(Some).map_err(|e| e.to_string()),
                 cleanup::Mode::Delete => cleanup::delete(&p).map(|_| None).map_err(|e| e.to_string()),
             });
@@ -518,6 +525,28 @@ fn purge_cleanup(app: AppHandle, id: String) -> Result<Vec<Failure>, String> {
 }
 
 /// The history, with each trashed item checked for whether it's still in the Trash.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppsProgress {
+    done: usize,
+    total: usize,
+    current: String,
+}
+
+/// Reads the installed apps in the background, reporting `apps-progress` events.
+#[tauri::command]
+async fn list_apps(app: AppHandle) -> Result<apps::AppsReport, String> {
+    let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        apps::list(&home, |done, total, current| {
+            let _ = handle.emit("apps-progress", AppsProgress { done, total, current: current.to_string() });
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn full_disk_access(app: AppHandle) -> Result<bool, String> {
     Ok(access::has_full_disk_access(&app.path().home_dir().map_err(|e| e.to_string())?))
@@ -579,6 +608,7 @@ pub fn run() {
             purge_cleanup,
             get_history,
             full_disk_access,
+            list_apps,
             open_full_disk_access_settings,
             relaunch,
             set_menu_bar_settings

@@ -151,3 +151,44 @@ export const purgeCleanup = (id: string) => invoke<{ path: string; error: string
 export const fullDiskAccess = () => invoke<boolean>("full_disk_access");
 export const openFullDiskAccessSettings = () => invoke<void>("open_full_disk_access_settings");
 export const relaunch = () => invoke<void>("relaunch");
+
+export interface AppPart {
+  kind: string;
+  path: string;
+  size: number;
+}
+
+export interface InstalledApp {
+  id: string;
+  name: string;
+  version: string | null;
+  vendor: string | null;
+  category: string | null;
+  /** The .app first, then its folders in ~/Library. */
+  parts: AppPart[];
+  installed: number | null;
+  lastOpened: number | null;
+  lastOpenedEstimated: boolean;
+  running: boolean;
+  appStore: boolean;
+  ownUninstaller: boolean;
+}
+
+export interface Leftover {
+  id: string;
+  guess: string;
+  location: string;
+  paths: string[];
+  size: number;
+  modified: number;
+}
+
+export interface AppsReport {
+  apps: InstalledApp[];
+  leftovers: Leftover[];
+  system: string[];
+}
+
+export const listApps = () => invoke<AppsReport>("list_apps");
+export const onAppsProgress = (cb: (p: { done: number; total: number; current: string }) => void): Promise<UnlistenFn> =>
+  listen<{ done: number; total: number; current: string }>("apps-progress", (e) => cb(e.payload));

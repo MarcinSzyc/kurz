@@ -48,14 +48,21 @@ const RULE_OWNERS: &[(&str, &str)] = &[
 ];
 
 /// Finds an installed app by bundle id, anywhere macOS knows about (not just /Applications).
-fn app_name(bundle_id: &str) -> Option<String> {
+pub(crate) fn app_name(bundle_id: &str) -> Option<String> {
     let url = NSWorkspace::sharedWorkspace().URLForApplicationWithBundleIdentifier(&NSString::from_str(bundle_id))?;
     let path = url.path()?;
     let name = NSFileManager::defaultManager().displayNameAtPath(&path).to_string();
     Some(name.trim_end_matches(".app").to_string())
 }
 
-fn is_running(bundle_id: &str) -> bool {
+/// Asks every running instance of an app to quit, as if from its menu (it may still ask to save).
+pub(crate) fn ask_to_quit(bundle_id: &str) {
+    for app in NSRunningApplication::runningApplicationsWithBundleIdentifier(&NSString::from_str(bundle_id)).iter() {
+        app.terminate();
+    }
+}
+
+pub(crate) fn is_running(bundle_id: &str) -> bool {
     NSRunningApplication::runningApplicationsWithBundleIdentifier(&NSString::from_str(bundle_id)).count() > 0
 }
 
@@ -67,7 +74,7 @@ fn owner(bundle_id: &str) -> Owner {
 }
 
 /// A folder named like `com.vendor.App`, i.e. probably an app's bundle id.
-fn looks_like_bundle_id(name: &str) -> bool {
+pub(crate) fn looks_like_bundle_id(name: &str) -> bool {
     let parts: Vec<&str> = name.split('.').collect();
     parts.len() >= 3 && matches!(parts[0], "com" | "org" | "net" | "io" | "dev" | "app" | "co" | "de" | "us" | "me")
 }

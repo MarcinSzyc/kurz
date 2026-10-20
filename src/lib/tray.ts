@@ -1,4 +1,4 @@
-import type { Category, Recommendation, Risk, TreeNode } from "./api";
+import type { Category, InstalledApp, Leftover, Recommendation, Risk, TreeNode } from "./api";
 
 export const GB = 1e9;
 
@@ -73,6 +73,12 @@ export interface TrayEntry {
   category: Category;
   /** An app that should be quit before this is removed. */
   runningApp?: string;
+  /** For an app being uninstalled: what goes with it, shown under it in the tray. */
+  parts?: { kind: string; size: number }[];
+  /** A note for the confirm sheet, e.g. that the app has its own uninstaller. */
+  note?: string;
+  /** Kurz asks this app to quit itself before removing it. */
+  quitsApp?: string;
 }
 
 export const fromRecommendation = (r: Recommendation): TrayEntry => ({
@@ -125,3 +131,31 @@ export const fromFolder = (node: TreeNode, home: string, items: Recommendation[]
 
 /** True when `path` is one of the entry's paths or inside one. */
 export const covers = (entry: TrayEntry, path: string) => entry.paths.some((p) => path === p || path.startsWith(p + "/"));
+
+/** An app being uninstalled, with the parts the user kept ticked. */
+export function fromApp(app: InstalledApp, keep: string[]): TrayEntry {
+  const parts = app.parts.filter((p, i) => i === 0 || !keep.includes(p.path));
+  return {
+    key: "app:" + app.id,
+    label: app.name,
+    location: parts.length > 1 ? `App + ${parts.length - 1} leftover folder${parts.length > 2 ? "s" : ""}` : "App",
+    paths: parts.map((p) => p.path),
+    size: parts.reduce((sum, p) => sum + p.size, 0),
+    risk: "takeALook",
+    category: "other",
+    parts: parts.map((p) => ({ kind: p.kind, size: p.size })),
+    quitsApp: app.running ? app.name : undefined,
+    note: app.ownUninstaller ? `${app.name} has its own uninstaller; Kurz still removes the app and its leftovers.` : undefined,
+  };
+}
+
+/** Data left behind by an app that's gone. */
+export const fromLeftover = (l: Leftover): TrayEntry => ({
+  key: "left:" + l.id,
+  label: `${l.guess} leftovers`,
+  location: l.id,
+  paths: l.paths,
+  size: l.size,
+  risk: "safe",
+  category: "other",
+});

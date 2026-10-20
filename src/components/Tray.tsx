@@ -98,7 +98,7 @@ export function Tray(props: TrayProps) {
       <div className="tray-head">
         <div className="tray-title">
           <span>Cleanup tray</span>
-          <span className="muted small">{goal ? `${entries.length} items` : "shared with Clean up"}</span>
+          <span className="muted small">{goal ? `${entries.length} items` : "shared across tabs"}</span>
         </div>
         <div className="tray-sum">
           <strong className="tray-total mono">{formatBytes(sum)}</strong>
@@ -131,7 +131,7 @@ export function Tray(props: TrayProps) {
       </div>
       <div className="tray-list">
         {sorted.map((e) => (
-          <div key={e.key} className="tray-row">
+          <div key={e.key} className={`tray-row ${e.parts ? "with-parts" : ""}`}>
             <span className={`chip cat-${e.category}`} />
             <div className="tray-name">
               <span>{e.label}</span>
@@ -142,10 +142,24 @@ export function Tray(props: TrayProps) {
             <button className="x" onClick={() => props.onRemove(e.key)} aria-label={`Remove ${e.label} from the tray`}>
               ×
             </button>
+            {e.parts && (
+              <div className="tray-parts">
+                {e.parts.map((p, i) => (
+                  <div key={i}>
+                    <span>{p.kind}</span>
+                    <span className="mono">{formatBytes(p.size)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
         {empty && <p className="tray-empty muted">{props.emptyHint}</p>}
-        {own.length > 0 && (
+        {entries.some((e) => e.key.startsWith("app:")) ? (
+          <div className="note warn">
+            Apps are marked “Take a look”: their settings and data go too. Untick Preferences in the app’s row to keep your settings.
+          </div>
+        ) : own.length > 0 && (
           <div className="note warn">
             {own.length === 1 ? "1 item" : `${own.length} items`} may contain your own files ({own.map((e) => e.label).join(", ")}). Kurz asks
             before removing them.
@@ -216,6 +230,7 @@ function ConfirmSheet({
                   </strong>
                   <span className="muted">
                     {risk.id === "takeALook" ? `${group.map((e) => e.label).join(", ")}. ` : ""}
+                    {risk.id === "takeALook" && group.some((e) => e.key.startsWith("app:")) ? "Apps and their data; documents you made with them are not touched. " : ""}
                     {risk.sheet}
                     {risk.id === "takeALook" && mode === "trash" ? " Moved to Trash, so you can still restore them." : ""}
                   </span>
@@ -225,6 +240,14 @@ function ConfirmSheet({
             );
           })}
         </div>
+        {entries.some((e) => e.quitsApp) && (
+          <p className="note warn sheet-note">Kurz will ask {entries.flatMap((e) => (e.quitsApp ? [e.quitsApp] : [])).join(", ")} to quit first.</p>
+        )}
+        {entries.flatMap((e) => (e.note ? [e.note] : [])).map((n) => (
+          <p key={n} className="note warn sheet-note">
+            {n}
+          </p>
+        ))}
         {entries.some((e) => e.runningApp) && (
           <p className="note warn sheet-note">
             Quit {[...new Set(entries.flatMap((e) => (e.runningApp ? [e.runningApp] : [])))].join(", ")} first, so they aren't using the files.

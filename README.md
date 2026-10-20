@@ -28,6 +28,7 @@ Kurz scans your home folder, builds a size tree of every file and folder, sugges
 | Cleaning that asks every time: to the Trash or permanently; Undo; "Empty from Trash" deletes only that cleanup's items | ✅ done |
 | **Map** screen: a calm two-level treemap colored by category; clicking a tile adds the folder to the tray shared with Clean up; › opens a folder; "Only removable" dims folders that may hold your own files | ✅ done |
 | **History** screen: space reclaimed, how fast the disk fills, a 30/90-day free space chart with cleanups marked, past cleanups with per-item restore from the Trash, folders that keep growing back | ✅ done |
+| **Apps** screen: installed apps with version, vendor, App Store category, size plus leftovers in ~/Library, install date and last opened (Spotlight); filters, sort and search; uninstall an app with the leftovers you keep ticked; data left by apps that are gone | ✅ done |
 | macOS menu bar gauge: four icon styles (Bar, Tank, Slabs, Sprite), configurable text, amber and coral past thresholds (80% and 95% by default) | ✅ done |
 | **How it works** (from the ••• menu): scanning, categories, recommendation rules, protected places and removal, rendered from the same rules the app uses | ✅ done |
 | Full Disk Access screen: checks whether Kurz has it, opens the right System Settings pane, Quit & Reopen; a banner after a scan with unreadable folders | ✅ done |
@@ -41,6 +42,7 @@ Kurz scans your home folder, builds a size tree of every file and folder, sugges
 - Nothing happens until you choose it. Recommendations are only suggestions.
 - Scanning only reads; it never changes anything on disk.
 - Some places Kurz never touches: Documents, Desktop, Pictures, Movies, Music, iCloud Drive, Mail, Messages, Keychains, `~/.ssh`, `~/.gnupg`.
+- Outside your home folder Kurz removes only app bundles, and only when you uninstall them: `*.app` in `/Applications` or `~/Applications`, never apps that are part of macOS, and a running app is asked to quit first (if it doesn't, it's skipped).
 - Nothing leaves your Mac. Kurz makes no network requests.
 
 ## How it works
@@ -77,7 +79,8 @@ Kurz scans your home folder, builds a size tree of every file and folder, sugges
 4. **The tree in memory.** The scan result is a tree in the Rust process. The UI fetches only the part it shows (`get_tree(path, depth)`); entries too small to see are merged into one, so even with millions of files little data crosses to the UI.
 5. **Recommendations.** The rules in [`rules.rs`](src-tauri/src/rules.rs) describe what Kurz may suggest: a path, or a folder name with a condition (e.g. `node_modules` next to `package.json`, only in projects unchanged for 30 days), a risk level (*Safe*, *Rebuildable* or *Take a look*), why, and how to get it back. The protected places live in the same file, and tests make sure no rule reaches into them. Matching runs on the tree in memory, in milliseconds; once a folder matches, nothing inside it is matched again.
 6. **What is this?** For app caches, [`about.rs`](src-tauri/src/about.rs) asks macOS (LaunchServices) which app has that bundle id, wherever it's installed, and whether it's running. Nothing is looked up online.
-7. **Removal.** Right before removing, each path is checked again: it still exists, it's inside your home folder even after resolving symlinks, and it isn't in a protected place. The Trash is handled by the system `NSFileManager`; Kurz remembers where each item landed in the Trash, so Undo and History can put it back.
+7. **Apps.** [`apps.rs`](src-tauri/src/apps.rs) reads each app in `/Applications` and `~/Applications` through `NSBundle` (name, version, vendor from the copyright line, App Store category), sizes it with the same scanner, finds its folders in `~/Library` by bundle id and name, and asks Spotlight (`mdls`) when it was added and last opened. When Spotlight has no record, the last change to the app's data stands in, marked with `~`. Data named after bundle ids of apps that are gone, from vendors with no app left, shows up as leftovers.
+8. **Removal.** Right before removing, each path is checked again: it still exists, it's inside your home folder even after resolving symlinks, and it isn't in a protected place. The Trash is handled by the system `NSFileManager`; Kurz remembers where each item landed in the Trash, so Undo and History can put it back.
 
 **No database, and none needed.** A tree of ~3 million files fits in a few hundred MB of RAM and is rebuilt on every scan. The only files Kurz writes are two small JSON files in `~/Library/Application Support/com.marcinszyc.kurz/`: `settings.json` and `history.json` (cleanups, free space sampled at most hourly, recommendation sizes once a day; data older than 120 days is dropped).
 
@@ -253,6 +256,8 @@ With the menu bar item on, closing the window only hides it and Kurz keeps runni
 
 On the first scan macOS asks for access to Desktop, Documents and Downloads. To scan everything, including app data in `~/Library`, give Kurz Full Disk Access: **System Settings → Privacy & Security → Full Disk Access**. Without it some folders show up as unreadable.
 
+Without Full Disk Access macOS also asks once whether Kurz may read other apps' data (`~/Library/Containers`); until you answer, that part of a scan waits.
+
 Kurz walks you through it: before the first scan, and from a banner when a scan found unreadable folders, it opens that pane for you and offers **Quit & Reopen**, since macOS applies the change only after a restart. To tell whether access is on, Kurz tries to open the macOS privacy database (`~/Library/Application Support/com.apple.TCC/TCC.db`), which only apps with Full Disk Access may open; it never reads or changes it.
 
 ## Project structure
@@ -261,8 +266,8 @@ Kurz walks you through it: before the first scan, and from a banner when a scan 
 kurz/
 ├── src/                    # UI (React + TypeScript)
 │   ├── App.tsx             # header, tabs, shared tray state
-│   ├── components/         # CleanUp, MapView, HistoryView, Tray, HeaderMenu,
-│   │                       # MenuBarSettings, HowItWorks, FullDiskAccess
+│   ├── components/         # CleanUp, MapView, HistoryView, AppsView, Tray,
+│   │                       # HeaderMenu, MenuBarSettings, HowItWorks, FullDiskAccess
 │   ├── lib/                # calls into Rust, the tray model, formatting
 │   └── assets/             # app icon, Geist fonts (SIL OFL)
 ├── src-tauri/              # core (Rust)
@@ -270,6 +275,7 @@ kurz/
 │   ├── src/rules.rs        # cleanup rules and protected places
 │   ├── src/recommend.rs    # matching the rules against a scan
 │   ├── src/about.rs        # "what is this": owning app, notes for opaque folders
+│   ├── src/apps.rs         # installed apps, their data, leftovers of removed apps
 │   ├── src/cleanup.rs      # path checks, Trash, delete, restore
 │   ├── src/history.rs      # cleanups, free space, sizes over time (JSON)
 │   ├── src/categories.rs   # folder categories

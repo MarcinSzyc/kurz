@@ -20,3 +20,5 @@ Palette: warm paper (`#f5f3ef` / cards `#fbfaf7`) in light, `#141413` / `#1b1b1a
 [`menu-and-modals.html`](menu-and-modals.html) adds the header with the app icon, a light/dark toggle and the ••• menu (8c), and the *How it works* (8e) and *Menu bar* (8f) modals.
 
 [`how-it-works.html`](how-it-works.html) is the full *How it works* modal, and [`menu-bar.html`](menu-bar.html) the *Menu bar* modal with four icon styles (Bar, Tank, Slabs, Sprite). Kurz shows commands as *Or run it yourself*, since it removes folders rather than running them, and colors only the menu bar icon, as macOS keeps the text in the system color.
+
+[`apps.html`](apps.html) is the *Apps* tab: installed apps with their data, uninstalling with the leftovers you choose, and leftovers of removed apps. Kurz shows initials on category-tinted tiles as in the design rather than real app icons, and marks a last-opened date with `~` when Spotlight has no record and the app's data stands in.

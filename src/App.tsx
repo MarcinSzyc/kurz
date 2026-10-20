@@ -6,6 +6,8 @@ import {
   diskInfo,
   fullDiskAccess,
   getMenuBarSettings,
+  listApps,
+  onAppsProgress,
   getRecommendations,
   getTree,
   homeDir,
@@ -16,6 +18,7 @@ import {
   purgeCleanup,
   restoreCleanup,
   startScan,
+  type AppsReport,
   type CleanMode,
   type CleanReport,
   type DiskInfo,
@@ -34,6 +37,7 @@ import { MenuBarSettingsPanel } from "./components/MenuBarSettings";
 import { HowItWorks } from "./components/HowItWorks";
 import { HistoryView } from "./components/HistoryView";
 import { FullDiskAccess } from "./components/FullDiskAccess";
+import { AppsView } from "./components/AppsView";
 import { MoreMenu, ThemeToggle, type Theme } from "./components/HeaderMenu";
 import icon from "./assets/icon.png";
 import "./fonts.css";
@@ -45,7 +49,7 @@ const MAP_DEPTH = 2;
 const LOW_FREE = 0.1;
 
 type Status = "idle" | "scanning" | "done";
-type Page = "cleanup" | "map" | "history";
+type Page = "cleanup" | "map" | "history" | "apps";
 
 /** A per-device preference, so the browser's storage is enough; it may be unavailable. */
 function storedTheme(): Theme {
@@ -61,6 +65,7 @@ const TABS: { id: Page; label: string }[] = [
   { id: "cleanup", label: "Clean up" },
   { id: "map", label: "Map" },
   { id: "history", label: "History" },
+  { id: "apps", label: "Apps" },
 ];
 
 function App() {
@@ -78,6 +83,9 @@ function App() {
   const [fda, setFda] = useState<boolean | null>(null);
   const [fdaSkipped, setFdaSkipped] = useState(false);
   const [fdaOpen, setFdaOpen] = useState(false);
+  const [appsReport, setAppsReport] = useState<AppsReport | null>(null);
+  const [appsProgress, setAppsProgress] = useState<{ done: number; total: number; current: string } | null>(null);
+  const appsLoading = useRef(false);
   const [page, setPage] = useState<Page>("cleanup");
   const [theme, setTheme] = useState<Theme>(storedTheme);
 
@@ -139,6 +147,7 @@ function App() {
       onOpenSettings(() => setSettingsOpen(true)),
       onScanProgress(setProgress),
       onCleanupProgress((p) => setCleaning({ done: p.done, total: p.total })),
+      onAppsProgress(setAppsProgress),
       onScanDone((d) => {
         setDone(d);
         setProgress(d.progress);
@@ -153,6 +162,23 @@ function App() {
     ];
     return () => unlisten.forEach((p) => p.then((off) => off()));
   }, []);
+
+  function loadApps() {
+    if (appsLoading.current) return;
+    appsLoading.current = true;
+    setAppsReport(null);
+    listApps()
+      .then(setAppsReport, fail)
+      .finally(() => {
+        appsLoading.current = false;
+      });
+  }
+
+  useEffect(() => {
+    if (page === "apps" && !appsReport) loadApps();
+    // Loads once per visit to an empty Apps tab; a cleanup clears it to reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, appsReport]);
 
   async function scan() {
     if (!home) return;
@@ -178,6 +204,7 @@ function App() {
       setReport(result);
       setSelection([]);
       setFolders([]);
+      if (chosen.some((e) => e.key.startsWith("app:") || e.key.startsWith("left:"))) setAppsReport(null);
       await refreshRecommendations();
       if (home) refreshDisk(home);
       if (node) open(node.path);
@@ -236,6 +263,15 @@ function App() {
     if (folders.some((f) => f.key === key)) setFolders(folders.filter((f) => f.key !== key));
     else setSelection(selected.filter((x) => x !== key));
   }
+
+  /** Adds an app or leftover to the tray (replacing what it contains), or takes it out. */
+  function toggleEntry(entry: TrayEntry) {
+    if (folders.some((f) => f.key === entry.key)) return removeEntry(entry.key);
+    setFolders([...folders.filter((f) => !f.paths.every((p) => covers(entry, p))), entry]);
+    setSelection(selected.filter((id) => !items.find((i) => i.id === id)?.paths.every((p) => covers(entry, p))));
+  }
+
+  const updateEntry = (entry: TrayEntry) => setFolders(folders.map((f) => (f.key === entry.key ? entry : f)));
 
   function toggleFolder(n: TreeNode) {
     const holder = tray.find((e) => covers(e, n.path));
@@ -346,6 +382,16 @@ function App() {
         />
       ) : fda === false && !fdaSkipped && !scanned && status !== "scanning" ? (
         <FullDiskAccess onSkip={() => setFdaSkipped(true)} />
+      ) : page === "apps" ? (
+        <AppsView
+          home={home ?? ""}
+          report={appsReport}
+          progress={appsProgress}
+          tray={tray}
+          onToggle={toggleEntry}
+          onUpdate={updateEntry}
+          trayPanel={trayPanel(false)}
+        />
       ) : status === "scanning" || !scanned ? (
         <ScanState status={status} progress={progress} cancelled={!!done?.cancelled} onScan={scan} canScan={!!home} />
       ) : page === "cleanup" ? (

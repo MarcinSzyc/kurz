@@ -28,8 +28,9 @@ export function FullDiskAccess({ modal, onSkip }: Props) {
       <img src={icon} alt="" className="fda-icon" />
       <h2>Give Kurz Full Disk Access</h2>
       <p className="sub">
-        Most of what Kurz can clean lives in <span className="mono">~/Library</span>: app caches, logs, simulators, Docker. macOS hides
-        much of it until you allow full access. Kurz only reads while scanning, and nothing leaves your Mac.
+        Most of what Kurz can clean lives in <span className="mono">~/Library</span>: app caches, logs, simulators, Docker, other apps’ data.
+        Without full access macOS hides some of it and asks before Kurz may read other apps’ data. Kurz only reads while scanning, and
+        nothing leaves your Mac.
       </p>
 
       <ol className="fda-steps">
