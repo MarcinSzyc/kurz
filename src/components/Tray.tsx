@@ -11,6 +11,8 @@ interface TrayProps {
   goal?: { gb: number; maxGb: number };
   disk: DiskInfo | null;
   cleaning: { done: number; total: number } | null;
+  /** Cleaning waits for a running scan, which would otherwise still count what's removed. */
+  scanning: boolean;
   report: CleanReport | null;
   emptyHint: string;
   onRemove: (key: string) => void;
@@ -173,8 +175,14 @@ export function Tray(props: TrayProps) {
         )}
       </div>
       <div className="tray-actions">
-        <button className="cta" disabled={empty || !!cleaning} onClick={() => setSheet(true)}>
-          {cleaning ? `Cleaning… ${cleaning.done}/${cleaning.total}` : empty ? "Add items to clean" : `Review & clean ${formatBytes(sum)}`}
+        <button className="cta" disabled={empty || !!cleaning || props.scanning} onClick={() => setSheet(true)}>
+          {cleaning
+            ? `Cleaning… ${cleaning.done}/${cleaning.total}`
+            : props.scanning
+              ? "Wait for the scan to finish"
+              : empty
+                ? "Add items to clean"
+                : `Review & clean ${formatBytes(sum)}`}
         </button>
         <button className="link muted" onClick={props.onClear} disabled={empty}>
           Empty the tray

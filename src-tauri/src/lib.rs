@@ -1,6 +1,7 @@
 mod about;
 mod access;
 mod apps;
+pub mod cache;
 mod categories;
 pub mod cleanup;
 mod disk;
@@ -39,6 +40,24 @@ const PROGRESS_INTERVAL: Duration = Duration::from_millis(150);
 struct ScanResult {
     root: PathBuf,
     tree: Node,
+    stats: cache::Stats,
+}
+
+fn scan_cache_path(app: &AppHandle) -> Option<PathBuf> {
+    app.path().app_cache_dir().ok().map(|d| d.join("last-scan.bin"))
+}
+
+/// Saves the scan in the background, so the next launch opens with it.
+fn save_scan(app: &AppHandle) {
+    let app = app.clone();
+    thread::spawn(move || {
+        let Some(path) = scan_cache_path(&app) else { return };
+        let state = app.state::<AppState>();
+        let guard = state.result.lock().unwrap();
+        if let Some(r) = guard.as_ref() {
+            let _ = cache::save(&path, &r.root, &r.tree, r.stats);
+        }
+    });
 }
 
 #[derive(Default)]
@@ -184,7 +203,14 @@ fn start_scan(app: AppHandle, state: State<AppState>, path: String) -> Result<()
                         h.record_sizes(now(), items.iter().map(|i| (i.id.as_str(), i.label.as_str(), i.location.as_str(), i.size)))
                     });
                 }
-                *state.result.lock().unwrap() = Some(ScanResult { root: root.clone(), tree });
+                let stats = cache::Stats {
+                    scanned_at: now(),
+                    files: progress.files.load(Ordering::Relaxed),
+                    dirs: progress.dirs.load(Ordering::Relaxed),
+                    errors: progress.errors.load(Ordering::Relaxed),
+                };
+                *state.result.lock().unwrap() = Some(ScanResult { root: root.clone(), tree, stats });
+                save_scan(&app);
                 (false, None)
             }
             Ok(None) => (true, None),
@@ -489,6 +515,9 @@ fn run_cleanup(app: &AppHandle, items: Vec<CleanRequest>, mode: cleanup::Mode) -
         .filter(|(_, _, removed)| !removed.is_empty())
         .map(|(label, size, paths)| history::CleanedItem { label, size, paths })
         .collect();
+    if !cleaned.is_empty() {
+        save_scan(app);
+    }
     let cleanup = (!cleaned.is_empty()).then(|| history::Cleanup {
         id: format!("{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()),
         at: now(),
@@ -546,7 +575,8 @@ fn restore_cleanup(app: AppHandle, state: State<AppState>, id: String, paths: Op
         }
         Ok(failed)
     })
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
+    .inspect(|_| save_scan(&app))?
 }
 
 /// Deletes for good the items a cleanup moved to the Trash, freeing their space.
@@ -601,6 +631,32 @@ async fn list_apps(app: AppHandle) -> Result<apps::AppsReport, String> {
     .map_err(|e| e.to_string())
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ScanInfo {
+    root: String,
+    scanned_at: i64,
+    files: u64,
+    dirs: u64,
+    errors: u64,
+    bytes: u64,
+}
+
+/// The scan in memory, if any: from this session or loaded from the last one.
+#[tauri::command]
+fn scan_info(state: State<AppState>) -> Option<ScanInfo> {
+    let guard = state.result.lock().unwrap();
+    let r = guard.as_ref()?;
+    Some(ScanInfo {
+        root: r.root.to_string_lossy().into_owned(),
+        scanned_at: r.stats.scanned_at,
+        files: r.stats.files,
+        dirs: r.stats.dirs,
+        errors: r.stats.errors,
+        bytes: r.tree.size,
+    })
+}
+
 #[tauri::command]
 fn full_disk_access(app: AppHandle) -> Result<bool, String> {
     Ok(access::has_full_disk_access(&app.path().home_dir().map_err(|e| e.to_string())?))
@@ -637,6 +693,20 @@ pub fn run() {
             let home = app.path().home_dir()?;
             app.manage(MenuBar::create(handle, home, history_path(handle)?, settings.menu_bar)?);
             MenuBar::spawn_refresher(handle.clone());
+            // Open with the last scan, read in the background; the UI asks for it on `scan-loaded`.
+            let app_handle = handle.clone();
+            thread::spawn(move || {
+                let Some(path) = scan_cache_path(&app_handle) else { return };
+                let Some((root, tree, stats)) = cache::load(&path) else { return };
+                let state = app_handle.state::<AppState>();
+                let mut guard = state.result.lock().unwrap();
+                // A scan finished meanwhile is newer; keep it.
+                if guard.is_none() && Some(&root) == app_handle.path().home_dir().ok().as_ref() {
+                    *guard = Some(ScanResult { root, tree, stats });
+                    drop(guard);
+                    let _ = app_handle.emit("scan-loaded", ());
+                }
+            });
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -663,6 +733,7 @@ pub fn run() {
             get_history,
             full_disk_access,
             list_apps,
+            scan_info,
             open_full_disk_access_settings,
             relaunch,
             set_menu_bar_settings

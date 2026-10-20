@@ -194,3 +194,15 @@ export interface AppsReport {
 export const listApps = () => invoke<AppsReport>("list_apps");
 export const onAppsProgress = (cb: (p: { done: number; total: number; current: string }) => void): Promise<UnlistenFn> =>
   listen<{ done: number; total: number; current: string }>("apps-progress", (e) => cb(e.payload));
+
+export interface ScanInfo {
+  root: string;
+  scannedAt: number;
+  files: number;
+  dirs: number;
+  errors: number;
+  bytes: number;
+}
+
+export const scanInfo = () => invoke<ScanInfo | null>("scan_info");
+export const onScanLoaded = (cb: () => void): Promise<UnlistenFn> => listen("scan-loaded", () => cb());

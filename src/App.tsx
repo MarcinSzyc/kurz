@@ -14,9 +14,11 @@ import {
   onCleanupProgress,
   onOpenSettings,
   onScanDone,
+  onScanLoaded,
   onScanProgress,
   purgeCleanup,
   restoreCleanup,
+  scanInfo,
   startScan,
   type AppsReport,
   type CleanMode,
@@ -97,6 +99,8 @@ function App() {
   const [cleaning, setCleaning] = useState<{ done: number; total: number } | null>(null);
   const [report, setReport] = useState<CleanReport | null>(null);
   const goalSet = useRef(false);
+  /** When the scan on screen was made (Unix seconds), from this session or the last one. */
+  const [scannedAt, setScannedAt] = useState<number | null>(null);
 
   const fail = (e: unknown) => setError(String(e));
 
@@ -136,6 +140,23 @@ function App() {
     }
   }, [theme]);
 
+  /** Shows the scan Kurz already has in memory, e.g. the last one, loaded at launch. */
+  async function showSavedScan() {
+    const info = await scanInfo().catch(() => null);
+    if (!info) return;
+    setDone({
+      root: info.root,
+      cancelled: false,
+      error: null,
+      progress: { files: info.files, dirs: info.dirs, bytes: info.bytes, errors: info.errors, elapsedMs: 0 },
+    });
+    setProgress({ files: info.files, dirs: info.dirs, bytes: info.bytes, errors: info.errors, elapsedMs: 0 });
+    setScannedAt(info.scannedAt);
+    setStatus((s) => (s === "scanning" ? s : "done"));
+    open(null);
+    refreshRecommendations().catch(fail);
+  }
+
   useEffect(() => {
     homeDir().then((h) => {
       setHome(h);
@@ -143,18 +164,23 @@ function App() {
     }, fail);
     getMenuBarSettings().then(setMenuBar, fail);
     fullDiskAccess().then(setFda, () => setFda(false));
+    showSavedScan();
     const unlisten = [
+      onScanLoaded(() => showSavedScan()),
       onOpenSettings(() => setSettingsOpen(true)),
       onScanProgress(setProgress),
       onCleanupProgress((p) => setCleaning({ done: p.done, total: p.total })),
       onAppsProgress(setAppsProgress),
       onScanDone((d) => {
-        setDone(d);
-        setProgress(d.progress);
+        const failed = d.cancelled || !!d.error;
+        // A cancelled or failed rescan keeps the scan that was on screen.
+        setDone((prev) => (failed && prev && !prev.cancelled && !prev.error ? prev : d));
+        if (!failed) setProgress(d.progress);
         setStatus(d.cancelled || d.error ? "idle" : "done");
         refreshDisk(d.root);
         if (d.error) setError(d.error);
         if (!d.cancelled && !d.error) {
+          setScannedAt(Date.now() / 1000);
           open(null);
           refreshRecommendations().catch(fail);
         }
@@ -183,7 +209,6 @@ function App() {
   async function scan() {
     if (!home) return;
     setError(null);
-    setProgress(null);
     setReport(null);
     setStatus("scanning");
     try {
@@ -289,6 +314,7 @@ function App() {
       goal={onClean ? { gb: goal, maxGb } : undefined}
       disk={disk}
       cleaning={cleaning}
+      scanning={status === "scanning"}
       report={report}
       emptyHint={onClean ? "Drag the goal slider or click Add on any item." : "Click a tile to add that folder."}
       onRemove={removeEntry}
@@ -306,7 +332,8 @@ function App() {
     />
   );
 
-  const scanned = status === "done" || (status === "scanning" && done !== null);
+  // Something is on screen to show: a finished scan, or the one before while a new one runs.
+  const scanned = done !== null && !done.cancelled && !done.error;
   const lowFree = disk ? disk.available / disk.total < LOW_FREE : false;
 
   return (
@@ -341,6 +368,11 @@ function App() {
                 <span style={{ width: `${(disk.used / disk.total) * 100}%` }} />
               </div>
             </div>
+          )}
+          {scanned && (
+            <span className="scan-age muted small" title={scannedAt ? new Date(scannedAt * 1000).toLocaleString() : undefined}>
+              {status === "scanning" ? `Scanning… ${formatCount(progress?.files ?? 0)} files` : scannedAt ? `scanned ${ageLabel(scannedAt)}` : ""}
+            </span>
           )}
           {status === "scanning" ? (
             <button onClick={() => cancelScan()}>Cancel</button>
@@ -392,7 +424,7 @@ function App() {
           onUpdate={updateEntry}
           trayPanel={trayPanel(false)}
         />
-      ) : status === "scanning" || !scanned ? (
+      ) : !scanned ? (
         <ScanState status={status} progress={progress} cancelled={!!done?.cancelled} onScan={scan} canScan={!!home} />
       ) : page === "cleanup" ? (
         <CleanUp
@@ -427,6 +459,16 @@ function App() {
       )}
     </main>
   );
+}
+
+/** "just now", "12 min ago", "3 h ago", "2 days ago" */
+function ageLabel(unix: number) {
+  const s = Math.max(0, Date.now() / 1000 - unix);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86_400) return `${Math.floor(s / 3600)} h ago`;
+  const d = Math.floor(s / 86_400);
+  return d === 1 ? "yesterday" : `${d} days ago`;
 }
 
 function ScanState({

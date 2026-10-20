@@ -21,6 +21,7 @@ Kurz scans your home folder, builds a size tree of every file and folder, sugges
 | Feature | Status |
 |---|---|
 | Fast, parallel scan of the home folder with live progress and cancel | ✅ done |
+| Opens with the last scan right away ("scanned 3 h ago"); a new scan runs while the old one stays on screen | ✅ done |
 | Header disk bar: free space and usage | ✅ done |
 | Light and dark themes: follows macOS by default; sun/moon toggle in the header, Light / Dark / Auto in the ••• menu | ✅ done |
 | **Clean up** screen: an "I need X GB" goal fills the tray with the safest items first; three groups: *Safe to delete*, *Rebuildable*, *Take a look*; when each item last changed | ✅ done |
@@ -82,7 +83,7 @@ Kurz scans your home folder, builds a size tree of every file and folder, sugges
 7. **Apps.** [`apps.rs`](src-tauri/src/apps.rs) reads each app in `/Applications` and `~/Applications` through `NSBundle` (name, version, vendor from the copyright line, App Store category), sizes it with the same scanner, finds its folders in `~/Library` by bundle id and name, and asks Spotlight (`mdls`) when it was added and last opened. When Spotlight has no record, the last change to the app's data stands in, marked with `~`. Data named after bundle ids of apps that are gone, from vendors with no app left, shows up as leftovers.
 8. **Removal.** Right before removing, each path is checked again: it still exists, it's inside your home folder even after resolving symlinks, and it isn't in a protected place. The Trash is handled by the system `NSFileManager`; Kurz remembers where each item landed in the Trash, so Undo and History can put it back.
 
-**No database, and none needed.** A tree of ~3 million files fits in a few hundred MB of RAM and is rebuilt on every scan. The only files Kurz writes are two small JSON files in `~/Library/Application Support/com.marcinszyc.kurz/`: `settings.json` and `history.json` (cleanups, free space sampled at most hourly, recommendation sizes once a day; data older than 120 days is dropped).
+**No database, and none needed.** A tree of ~3 million files fits in a few hundred MB of RAM and is rebuilt on every scan. Kurz writes two small JSON files in `~/Library/Application Support/com.marcinszyc.kurz/`: `settings.json` and `history.json` (cleanups, free space sampled at most hourly, recommendation sizes once a day; data older than 120 days is dropped). It also keeps the last scan in `~/Library/Caches/com.marcinszyc.kurz/last-scan.bin`, so it opens with it: every folder, files of 1 MB or more and the small files rules look for, gzip-compressed (a few MB for a home folder with millions of files; smaller files stay counted in their folder's size). Deleting it only means the next launch starts empty.
 
 ## Why these technologies
 
@@ -278,6 +279,7 @@ kurz/
 │   ├── src/apps.rs         # installed apps, their data, leftovers of removed apps
 │   ├── src/cleanup.rs      # path checks, Trash, delete, restore
 │   ├── src/history.rs      # cleanups, free space, sizes over time (JSON)
+│   ├── src/cache.rs        # the last scan, saved compactly for the next launch
 │   ├── src/categories.rs   # folder categories
 │   ├── src/menubar.rs      # the menu bar item
 │   ├── src/gauge.rs        # drawing the menu bar icon

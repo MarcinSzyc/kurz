@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
+use kurz_lib::cache;
 use kurz_lib::recommend;
 use kurz_lib::scanner::{self, Progress};
 
@@ -28,6 +29,20 @@ fn main() {
     let started = Instant::now();
     let items = recommend::recommend(&tree, &root, now);
     println!("\n{} recommendations in {:.2?}:", items.len(), started.elapsed());
+    let saved = std::env::temp_dir().join("kurz-scan-example.bin");
+    let started = Instant::now();
+    cache::save(&saved, &root, &tree, cache::Stats { scanned_at: now, files: 0, dirs: 0, errors: 0 }).unwrap();
+    let save_time = started.elapsed();
+    let started = Instant::now();
+    let (_, loaded, _) = cache::load(&saved).unwrap();
+    println!(
+        "\nsaved scan: {:.1} MB, saved in {:.2?}, loaded in {:.2?} (total {})",
+        std::fs::metadata(&saved).unwrap().len() as f64 / 1e6,
+        save_time,
+        started.elapsed(),
+        human(loaded.size)
+    );
+    std::fs::remove_file(&saved).unwrap();
     for item in &items {
         println!("{:>10}  {:<12} {} — {}", human(item.size), format!("{:?}", item.risk), item.label, item.location);
     }

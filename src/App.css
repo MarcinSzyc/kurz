@@ -3250,3 +3250,7 @@ button.link.strong {
 .fail-list li + li {
   margin-top: 2px;
 }
+
+.scan-age {
+  white-space: nowrap;
+}
