@@ -137,6 +137,16 @@ kurz/
 └── design/                 # ikona (źródło SVG i PNG 1024×1024)
 ```
 
+## Jak powstaje ten projekt
+
+Kurz jest budowany agentowo, z agentem AI (Claude Code), **na czystych promptach**:
+
+- **Bez skilli.** Nie używamy gotowych skilli ani własnych zestawów instrukcji dla agenta. Każdy krok to zwykła rozmowa: opis, czego chcemy, screen albo uwaga do wyniku.
+- **Bez wiki.** Nie prowadzimy osobnej bazy wiedzy ani dokumentacji dla agenta. Źródłem prawdy są kod, testy, historia gita i ten README.
+- **Lekko.** Apka ma być mała i szybka: minimum zależności, bez bazy danych, bez serwera, bez ciężkich frameworków. Każdą nową zależność trzeba uzasadnić.
+
+Pracujemy małymi krokami: plan etapu, implementacja, testy, commit. Każdy commit jest podpisany jako współtworzony z agentem.
+
 ## Ikona
 
 Puchata kulka kurzu z dużymi oczami, inspirowana klimatem filmów studia Ghibli. To oryginalna grafika, narysowana w SVG na potrzeby tego projektu. Źródło: [`design/icon.svg`](design/icon.svg).
