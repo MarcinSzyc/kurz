@@ -37,3 +37,14 @@ export const onScanProgress = (cb: (p: ScanProgress) => void): Promise<UnlistenF
   listen<ScanProgress>("scan-progress", (e) => cb(e.payload));
 export const onScanDone = (cb: (d: ScanDone) => void): Promise<UnlistenFn> =>
   listen<ScanDone>("scan-done", (e) => cb(e.payload));
+
+export interface DiskInfo {
+  name: string;
+  mountPoint: string;
+  fsType: string;
+  total: number;
+  available: number;
+  used: number;
+}
+
+export const diskInfo = (path: string) => invoke<DiskInfo>("disk_info", { path });

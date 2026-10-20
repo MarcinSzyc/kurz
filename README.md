@@ -18,8 +18,8 @@ Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folder
 |---|---|
 | Szybki, równoległy skan folderu z postępem na żywo i możliwością anulowania | ✅ gotowe |
 | Lista największych pozycji z nawigacją w głąb folderów | ✅ gotowe |
-| Informacje o dysku: pojemność, zajęte i wolne miejsce | 🚧 w trakcie |
-| Mapa kafelkowa (treemap): wielkość kafelka odpowiada zajmowanemu miejscu, kliknięcie wchodzi do folderu | 🚧 w trakcie |
+| Informacje o dysku i skanie: pojemność, zajęte i wolne miejsce, rozmiar folderu domowego, liczba plików, czas | ✅ gotowe |
+| Mapa kafelkowa (treemap): wielkość kafelka odpowiada zajmowanemu miejscu, kliknięcie wchodzi do folderu, przełącznik mapa/lista | ✅ gotowe |
 | Kolorowanie według kategorii: dokumenty, kod, SDK, modele AI, cache pakietów | 📋 planowane |
 | Rekomendacje „bezpieczne do usunięcia” i „do przejrzenia”, np. cache npm, `.next`, DerivedData, modele Ollama | 📋 planowane |
 | Czyszczenie przez przeniesienie do Kosza albo skopiowanie gotowego skryptu shell | 📋 planowane |
@@ -36,7 +36,7 @@ Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folder
 ┌──────────────────────────── Kurz.app ─────────────────────────────┐
 │                                                                   │
 │  Interfejs (React + TypeScript, w webview systemu)                │
-│    • kafelki z informacjami, mapa, lista, rekomendacje            │
+│    • kafelki z informacjami, mapa, lista (rekomendacje: wkrótce)  │
 │    • układ mapy liczony przez d3-hierarchy (squarified treemap)   │
 │                 ▲ zdarzenia: postęp, koniec skanu                 │
 │                 │ polecenia: start_scan, get_tree, disk_info      │
@@ -127,6 +127,7 @@ Przy pierwszym skanie macOS zapyta o dostęp do Biurka, Dokumentów i Pobranych.
 kurz/
 ├── src/                    # interfejs (React + TypeScript)
 │   ├── App.tsx
+│   ├── components/         # StatsBar, Explorer, Treemap
 │   └── lib/                # wywołania Rusta, formatowanie
 ├── src-tauri/              # rdzeń (Rust)
 │   ├── src/scanner.rs      # równoległy skaner + testy
