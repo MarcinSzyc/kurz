@@ -66,3 +66,27 @@ export const getMenuBarSettings = () => invoke<MenuBarSettings>("get_menu_bar_se
 export const setMenuBarSettings = (settings: MenuBarSettings) =>
   invoke<MenuBarSettings>("set_menu_bar_settings", { settings });
 export const onOpenSettings = (cb: () => void): Promise<UnlistenFn> => listen("open-settings", () => cb());
+
+export type Risk = "safe" | "review";
+
+export interface RuleInfo {
+  id: string;
+  label: string;
+  risk: Risk;
+  matches: string;
+  needsIdleProject: boolean;
+  reason: string;
+  restore: string;
+  command: string | null;
+}
+
+export interface HowItWorksInfo {
+  rules: RuleInfo[];
+  never: [string, string][];
+  categories: { category: Category; examples: string[] }[];
+  idleDays: number;
+  maxChildren: number;
+  minShare: number;
+}
+
+export const howItWorks = () => invoke<HowItWorksInfo>("how_it_works");

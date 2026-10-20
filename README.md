@@ -22,14 +22,16 @@ Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folder
 | Mapa kafelkowa (treemap): wielkość kafelka odpowiada zajmowanemu miejscu, kliknięcie wchodzi do folderu, przełącznik mapa/lista | ✅ gotowe |
 | Kolorowanie według kategorii z legendą: dokumenty, kod (repozytoria git), narzędzia deweloperskie, SDK, modele AI, cache, Library | ✅ gotowe |
 | Wskaźnik w pasku menu macOS: pierścień zajętości dysku, konfigurowalny tekst, kolor pomarańczowy/czerwony po przekroczeniu progów | ✅ gotowe |
-| Rekomendacje „bezpieczne do usunięcia” i „do przejrzenia”, np. cache npm, `.next`, DerivedData, modele Ollama | 📋 planowane |
-| Czyszczenie przez przeniesienie do Kosza albo skopiowanie gotowego skryptu shell | 📋 planowane |
+| Ekran „How it works”: jak działa skan, kategorie, reguły rekomendacji i usuwania, generowany z tych samych reguł, których używa apka | ✅ gotowe |
+| Rekomendacje „bezpieczne do usunięcia” i „do przejrzenia”, np. cache npm, `.next`, DerivedData, modele Ollama | 🚧 reguły gotowe, dopasowywanie w trakcie |
+| Czyszczenie z wyborem przy każdym usunięciu: do Kosza albo na stałe; alternatywnie gotowy skrypt shell | 📋 planowane |
 
 ### Zasady bezpieczeństwa
 
-- Kurz **nigdy nie usuwa plików na stałe**. Usuwanie zawsze przenosi do Kosza, z którego można je przywrócić.
+- **Przy każdym usuwaniu wybierasz sposób:** przeniesienie do Kosza (domyślnie, można przywrócić przez „Odłóż z powrotem”) albo trwałe usunięcie (miejsce zwalnia się od razu, nie da się cofnąć).
 - Nic nie dzieje się bez zaznaczenia przez Ciebie. Rekomendacje to tylko podpowiedzi.
 - Skan tylko czyta i niczego na dysku nie zmienia.
+- Niektórych miejsc Kurz nigdy nie rusza: Dokumenty, Biurko, Zdjęcia, iCloud Drive, Poczta, Wiadomości, pęki kluczy, `~/.ssh`, `~/.gnupg`.
 
 ## Jak to działa
 
@@ -47,6 +49,7 @@ Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folder
 │    • categories.rs: kategorie folderów (kolory mapy)              │
 │    • menubar.rs + gauge.rs: wskaźnik w pasku menu                 │
 │    • settings.rs: ustawienia w pliku JSON                         │
+│    • rules.rs: reguły rekomendacji, miejsca chronione             │
 │    • drzewo rozmiarów trzymane w pamięci                          │
 └───────────────────────────────────────────────────────────────────┘
 ```
@@ -59,6 +62,8 @@ Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folder
    - plik z kilkoma twardymi dowiązaniami liczy tylko raz;
    - folder bez uprawnień zalicza jako „nieczytelny” i skanuje dalej.
 4. **Drzewo w pamięci.** Wynik skanu to drzewo w pamięci procesu Rust. Interfejs pobiera tylko fragment, który akurat pokazuje (`get_tree(path, depth)`). Pozycje zbyt małe, by były widoczne, są łączone w jedną, więc nawet przy milionach plików do interfejsu trafia niewiele danych.
+
+5. **Rekomendacje.** Reguły w [`rules.rs`](src-tauri/src/rules.rs) opisują, co Kurz może zaproponować do usunięcia: ścieżkę albo nazwę folderu z warunkiem (np. `node_modules` obok `package.json`, tylko w projektach nieruszanych od 30 dni), poziom ryzyka (*Safe* albo *Review*), powód i sposób przywrócenia. Lista miejsc chronionych jest w tym samym pliku, a testy pilnują, żeby żadna reguła do nich nie sięgała. Pełny opis jest w apce, w zakładce **How it works**, generowanej prosto z tych reguł.
 
 **Bazy danych nie ma i nie jest potrzebna.** Drzewo z ~3 mln plików mieści się w kilkuset MB RAM i powstaje od nowa przy każdym skanie. Na dysk w przyszłości trafią najwyżej ustawienia (mały plik JSON) i ewentualnie cache ostatniego skanu.
 
@@ -137,7 +142,7 @@ Przy pierwszym skanie macOS zapyta o dostęp do Biurka, Dokumentów i Pobranych.
 kurz/
 ├── src/                    # interfejs (React + TypeScript)
 │   ├── App.tsx
-│   ├── components/         # StatsBar, Explorer, Treemap, MenuBarSettings
+│   ├── components/         # StatsBar, Explorer, Treemap, MenuBarSettings, HowItWorks
 │   └── lib/                # wywołania Rusta, formatowanie
 ├── src-tauri/              # rdzeń (Rust)
 │   ├── src/scanner.rs      # równoległy skaner + testy
@@ -146,6 +151,7 @@ kurz/
 │   ├── src/menubar.rs      # wskaźnik w pasku menu
 │   ├── src/gauge.rs        # rysowanie ikony-pierścienia
 │   ├── src/settings.rs     # ustawienia (JSON)
+│   ├── src/rules.rs        # reguły rekomendacji i miejsca chronione
 │   ├── src/lib.rs          # polecenia i zdarzenia Tauri
 │   ├── examples/scan.rs    # benchmark z linii poleceń
 │   └── tauri.conf.json     # konfiguracja okna i paczki

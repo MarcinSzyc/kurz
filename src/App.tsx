@@ -18,12 +18,14 @@ import {
 import { StatsBar } from "./components/StatsBar";
 import { Explorer, type ExplorerView } from "./components/Explorer";
 import { MenuBarSettingsPanel } from "./components/MenuBarSettings";
+import { HowItWorks } from "./components/HowItWorks";
 import "./App.css";
 
 /** Levels sent to the map: a folder, its children and grandchildren as tiles inside. */
 const MAP_DEPTH = 3;
 
 type Status = "idle" | "scanning" | "done";
+type Page = "disk" | "how";
 
 function App() {
   const [home, setHome] = useState<string | null>(null);
@@ -36,6 +38,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [menuBar, setMenuBar] = useState<MenuBarSettings | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [page, setPage] = useState<Page>("disk");
 
   const fail = (e: unknown) => setError(String(e));
 
@@ -86,9 +89,19 @@ function App() {
   return (
     <main className="app">
       <header className="toolbar">
-        <div>
-          <h1>Kurz</h1>
-          <p className="muted">{home ?? "Locating home folder…"}</p>
+        <div className="title">
+          <div>
+            <h1>Kurz</h1>
+            <p className="muted">{home ?? "Locating home folder…"}</p>
+          </div>
+          <div className="segmented">
+            <button className={page === "disk" ? "active" : ""} onClick={() => setPage("disk")}>
+              Disk
+            </button>
+            <button className={page === "how" ? "active" : ""} onClick={() => setPage("how")}>
+              How it works
+            </button>
+          </div>
         </div>
         <div className="actions">
           <button onClick={() => setSettingsOpen(true)} disabled={!menuBar}>
@@ -104,19 +117,25 @@ function App() {
         </div>
       </header>
 
-      <StatsBar disk={disk} progress={progress} scanning={status === "scanning"} />
-
-      {error && <p className="error">{error}</p>}
-      {done?.cancelled && <p className="muted">Scan cancelled.</p>}
-
-      {node && done ? (
-        <Explorer node={node} root={done.root} view={view} onViewChange={setView} onOpen={open} />
+      {page === "how" ? (
+        <HowItWorks />
       ) : (
-        <section className="panel empty">
-          <p className="muted">
-            {status === "scanning" ? "Scanning… the map appears when the scan finishes." : "Scan your home folder to see what takes up space."}
-          </p>
-        </section>
+        <>
+          <StatsBar disk={disk} progress={progress} scanning={status === "scanning"} />
+
+          {error && <p className="error">{error}</p>}
+          {done?.cancelled && <p className="muted">Scan cancelled.</p>}
+
+          {node && done ? (
+            <Explorer node={node} root={done.root} view={view} onViewChange={setView} onOpen={open} />
+          ) : (
+            <section className="panel empty">
+              <p className="muted">
+                {status === "scanning" ? "Scanning… the map appears when the scan finishes." : "Scan your home folder to see what takes up space."}
+              </p>
+            </section>
+          )}
+        </>
       )}
       {settingsOpen && menuBar && (
         <MenuBarSettingsPanel initial={menuBar} disk={disk} onClose={() => setSettingsOpen(false)} onSaved={setMenuBar} />

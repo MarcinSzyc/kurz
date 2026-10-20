@@ -49,6 +49,19 @@ const DEV_TOOLS: &[&str] = &[
     ".config", ".bun", ".deno", ".codex", ".claude", ".zed",
 ];
 
+/// Folder names that decide each category, for the "How it works" screen.
+pub fn examples() -> Vec<(Category, Vec<&'static str>)> {
+    vec![
+        (Category::Media, MEDIA.to_vec()),
+        (Category::Code, vec!["any folder containing .git"]),
+        (Category::DevTools, DEV_TOOLS.to_vec()),
+        (Category::Sdk, SDK.to_vec()),
+        (Category::AiModels, AI.to_vec()),
+        (Category::Cache, CACHE.to_vec()),
+        (Category::System, vec!["Library", "Applications"]),
+    ]
+}
+
 /// Category of a node, given its parent's category and how deep it is below the home folder.
 pub fn classify(node: &Node, parent: Category, depth_in_home: usize) -> Category {
     let name = &*node.name;

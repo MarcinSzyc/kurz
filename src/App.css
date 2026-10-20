@@ -677,3 +677,153 @@ button.link:hover {
   stroke: #8e8e93;
   opacity: 0.55;
 }
+
+/* Header */
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+/* How it works */
+
+.docs {
+  flex-direction: row;
+  overflow: hidden;
+}
+
+.docs-toc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  width: 180px;
+  padding: 16px 12px;
+  border-right: 1px solid var(--border);
+}
+
+.docs-toc a {
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.docs-toc a:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.docs-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 28px 28px;
+  line-height: 1.55;
+  scroll-behavior: smooth;
+}
+
+.docs-body section {
+  max-width: 920px;
+  padding-top: 16px;
+}
+
+.docs-body h2 {
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+
+.docs-body h3 {
+  margin: 20px 0 4px;
+  font-size: 14px;
+}
+
+.docs-body p,
+.docs-body li {
+  font-size: 13.5px;
+}
+
+.docs-body ul,
+.docs-body ol {
+  padding-left: 20px;
+}
+
+.docs-body li + li {
+  margin-top: 6px;
+}
+
+.docs-body code {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 1px 5px;
+  margin: 0 4px 4px 0;
+  border-radius: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  display: inline-block;
+}
+
+.docs-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.docs-body th,
+.docs-body td {
+  text-align: left;
+  vertical-align: top;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.docs-body tbody th {
+  white-space: nowrap;
+  font-weight: 500;
+  width: 200px;
+}
+
+.docs-body thead th {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rules td:first-child {
+  width: 34%;
+}
+
+.rules td:nth-child(2) {
+  width: 28%;
+}
+
+.rules .muted {
+  font-size: 12px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge.safe {
+  background: var(--cat-cache);
+  color: color-mix(in oklab, var(--cat-cache) 30%, var(--text));
+}
+
+.badge.review {
+  background: var(--cat-media);
+  color: color-mix(in oklab, var(--cat-media) 30%, var(--text));
+}
+
+.never {
+  list-style: none;
+  padding: 0 !important;
+  columns: 2;
+}

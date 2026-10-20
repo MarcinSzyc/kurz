@@ -2,6 +2,7 @@ mod categories;
 mod disk;
 mod gauge;
 mod menubar;
+mod rules;
 pub mod scanner;
 mod settings;
 
@@ -238,6 +239,65 @@ fn set_menu_bar_settings(app: AppHandle, menu_bar: State<MenuBar>, settings: Men
     Ok(settings)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RuleView {
+    id: &'static str,
+    label: &'static str,
+    risk: rules::Risk,
+    matches: String,
+    needs_idle_project: bool,
+    reason: &'static str,
+    restore: &'static str,
+    command: Option<&'static str>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CategoryView {
+    category: Category,
+    examples: Vec<&'static str>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HowItWorks {
+    rules: Vec<RuleView>,
+    never: Vec<(String, &'static str)>,
+    categories: Vec<CategoryView>,
+    idle_days: u32,
+    max_children: usize,
+    min_share: f64,
+}
+
+/// Everything the "How it works" screen shows, straight from the rules the app uses.
+#[tauri::command]
+fn how_it_works() -> HowItWorks {
+    HowItWorks {
+        rules: rules::RULES
+            .iter()
+            .map(|r| RuleView {
+                id: r.id,
+                label: r.label,
+                risk: r.risk,
+                matches: r.matcher.describe(),
+                needs_idle_project: r.needs_idle_project,
+                reason: r.reason,
+                restore: r.restore,
+                command: r.command,
+            })
+            .collect(),
+        never: rules::NEVER.iter().map(|(path, what)| (format!("~/{path}"), *what)).collect(),
+        categories: categories::examples()
+            .into_iter()
+            .map(|(category, examples)| CategoryView { category, examples })
+            .collect(),
+        idle_days: rules::IDLE_DAYS,
+        max_children: MAX_CHILDREN,
+        min_share: MIN_SHARE,
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -267,6 +327,7 @@ pub fn run() {
             cancel_scan,
             get_tree,
             get_menu_bar_settings,
+            how_it_works,
             set_menu_bar_settings
         ])
         .build(tauri::generate_context!())
