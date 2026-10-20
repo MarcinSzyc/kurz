@@ -3241,3 +3241,12 @@ button.link.strong {
   font-size: 11.5px;
   color: var(--muted);
 }
+
+.fail-list {
+  margin: 6px 0 0;
+  padding-left: 16px;
+}
+
+.fail-list li + li {
+  margin-top: 2px;
+}

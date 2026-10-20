@@ -145,7 +145,13 @@ export function fromApp(app: InstalledApp, keep: string[]): TrayEntry {
     category: "other",
     parts: parts.map((p) => ({ kind: p.kind, size: p.size })),
     quitsApp: app.running ? app.name : undefined,
-    note: app.ownUninstaller ? `${app.name} has its own uninstaller; Kurz still removes the app and its leftovers.` : undefined,
+    note:
+      [
+        app.ownUninstaller ? `${app.name} has its own uninstaller; Kurz still removes the app and its leftovers.` : "",
+        app.needsAdmin ? `${app.name} was installed for all users, so macOS will ask for your password.` : "",
+      ]
+        .filter(Boolean)
+        .join(" ") || undefined,
   };
 }
 
@@ -159,3 +165,6 @@ export const fromLeftover = (l: Leftover): TrayEntry => ({
   risk: "safe",
   category: "other",
 });
+
+/** "1 item", "3 items" */
+export const items = (n: number) => `${n} ${n === 1 ? "item" : "items"}`;

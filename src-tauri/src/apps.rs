@@ -43,6 +43,9 @@ pub struct InstalledApp {
     pub app_store: bool,
     /// Ships its own uninstaller, which also removes helpers and login items.
     pub own_uninstaller: bool,
+    /// Installed for all users (owned by another account, usually root): removing it asks for an
+    /// administrator password.
+    pub needs_admin: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -139,7 +142,7 @@ fn guess_name(bundle_id: &str) -> String {
 }
 
 /// Allocated size of a file or folder, without following symlinks.
-fn size_of(path: &Path) -> u64 {
+pub fn size_of(path: &Path) -> u64 {
     match fs::symlink_metadata(path) {
         Ok(m) if m.is_dir() => scanner::scan(path, &AtomicBool::new(false), &Progress::default()).ok().flatten().map_or(0, |n| n.size),
         Ok(m) => {
@@ -385,6 +388,11 @@ pub fn list(home: &Path, mut progress: impl FnMut(usize, usize, &str)) -> AppsRe
             running: about::is_running(&info.id),
             app_store: path.join("Contents/_MASReceipt/receipt").exists(),
             own_uninstaller: OWN_UNINSTALLER.iter().any(|p| info.id.starts_with(p)),
+            // SAFETY: getuid can't fail.
+            needs_admin: {
+                use std::os::unix::fs::MetadataExt;
+                fs::symlink_metadata(&path).is_ok_and(|m| m.uid() != unsafe { libc::getuid() })
+            },
             installed: added[i].or(created),
             last_opened_estimated: estimated && last_opened.is_some(),
             last_opened,

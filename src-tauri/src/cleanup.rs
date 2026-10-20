@@ -64,6 +64,80 @@ pub fn delete(path: &Path) -> io::Result<()> {
     if meta.is_dir() { fs::remove_dir_all(path) } else { fs::remove_file(path) }
 }
 
+/// Quotes a string for /bin/sh.
+fn sh_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', r"'\''"))
+}
+
+/// Quotes a string as an AppleScript string literal.
+fn applescript_quote(s: &str) -> String {
+    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+/// A free name for `name` in the Trash: "X.app", then "X 2.app", "X 3.app"…
+fn trash_destination(trash: &Path, name: &str) -> PathBuf {
+    let first = trash.join(name);
+    if fs::symlink_metadata(&first).is_err() {
+        return first;
+    }
+    let (stem, ext) = name.rsplit_once('.').map_or((name, None), |(s, e)| (s, Some(e)));
+    (2..)
+        .map(|n| trash.join(match ext { Some(e) => format!("{stem} {n}.{e}"), None => format!("{stem} {n}") }))
+        .find(|p| fs::symlink_metadata(p).is_err())
+        .unwrap()
+}
+
+/// The shell command that removes `paths` as an administrator: into the Trash (then handed back to
+/// the user, so Undo and Empty from Trash work as usual) or for good. Returns each Trash destination.
+pub fn admin_command(paths: &[PathBuf], mode: Mode, home: &Path, uid: u32, gid: u32) -> (String, Vec<Option<PathBuf>>) {
+    let trash = home.join(".Trash");
+    let mut taken: Vec<PathBuf> = Vec::new();
+    let mut steps = Vec::new();
+    let mut destinations = Vec::new();
+    for path in paths {
+        let src = sh_quote(&path.to_string_lossy());
+        match mode {
+            Mode::Trash => {
+                let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                let mut dest = trash_destination(&trash, &name);
+                // Two paths with the same name in one go mustn't land on the same spot.
+                let mut n = 2;
+                while taken.contains(&dest) {
+                    dest = trash.join(format!("{name} ({n})"));
+                    n += 1;
+                }
+                taken.push(dest.clone());
+                let d = sh_quote(&dest.to_string_lossy());
+                steps.push(format!("/bin/mv -n {src} {d} && /usr/sbin/chown -R {uid}:{gid} {d}"));
+                destinations.push(Some(dest));
+            }
+            Mode::Delete => {
+                steps.push(format!("/bin/rm -rf {src}"));
+                destinations.push(None);
+            }
+        }
+    }
+    (steps.join(" && "), destinations)
+}
+
+/// Runs `admin_command` through macOS's own password dialog; Kurz never sees the password.
+pub fn admin_remove(paths: &[PathBuf], mode: Mode, home: &Path) -> io::Result<Vec<Option<PathBuf>>> {
+    // SAFETY: getuid and getgid can't fail.
+    let (uid, gid) = unsafe { (libc::getuid(), libc::getgid()) };
+    let (command, destinations) = admin_command(paths, mode, home, uid, gid);
+    let script = format!(
+        "do shell script {} with administrator privileges with prompt {}",
+        applescript_quote(&command),
+        applescript_quote("Kurz needs your password to remove apps that were installed for all users.")
+    );
+    let out = std::process::Command::new("/usr/bin/osascript").arg("-e").arg(script).output()?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        return Err(io::Error::other(if err.contains("-128") { "You cancelled the password prompt".to_string() } else { err.trim().to_string() }));
+    }
+    Ok(destinations)
+}
+
 /// Puts an item moved to the Trash back where it was.
 pub fn restore(trashed: &Path, original: &Path) -> io::Result<()> {
     if fs::symlink_metadata(original).is_ok() {
@@ -131,6 +205,31 @@ mod tests {
 
         assert!(!home.join("cache").exists());
         assert!(home.join("keep/f").exists(), "the symlink target survives");
+    }
+
+    #[test]
+    fn quotes_for_shell_and_applescript() {
+        assert_eq!(sh_quote("NDI Router.app"), "'NDI Router.app'");
+        assert_eq!(sh_quote("it's.app"), r"'it'\''s.app'");
+        assert_eq!(applescript_quote(r#"a "b" \c"#), r#""a \"b\" \\c""#);
+    }
+
+    #[test]
+    fn builds_the_admin_command() {
+        let (_tmp, home) = setup();
+        fs::create_dir_all(home.join(".Trash/Tool.app")).unwrap();
+        let paths = [PathBuf::from("/Applications/Tool.app"), PathBuf::from("/Applications/Other Tool.app")];
+
+        let (cmd, dest) = admin_command(&paths, Mode::Trash, &home, 501, 20);
+
+        assert_eq!(dest[0].as_deref(), Some(home.join(".Trash/Tool 2.app").as_path()), "an existing name gets a number");
+        assert!(cmd.starts_with("/bin/mv -n '/Applications/Tool.app' "));
+        assert!(cmd.contains("/usr/sbin/chown -R 501:20 "));
+        assert!(cmd.contains("'/Applications/Other Tool.app'"));
+
+        let (cmd, dest) = admin_command(&paths[..1], Mode::Delete, &home, 501, 20);
+        assert_eq!(cmd, "/bin/rm -rf '/Applications/Tool.app'");
+        assert_eq!(dest, vec![None]);
     }
 
     #[test]

@@ -172,6 +172,8 @@ export interface InstalledApp {
   running: boolean;
   appStore: boolean;
   ownUninstaller: boolean;
+  /** Installed for all users: removing it asks for an administrator password. */
+  needsAdmin: boolean;
 }
 
 export interface Leftover {

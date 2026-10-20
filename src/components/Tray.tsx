@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { CleanMode, CleanReport, DiskInfo } from "../lib/api";
 import { formatBytes } from "../lib/format";
-import { GB, RISKS, type TrayEntry } from "../lib/tray";
+import { GB, RISKS, items, type TrayEntry } from "../lib/tray";
 
 const total = (entries: TrayEntry[]) => entries.reduce((sum, e) => sum + e.size, 0);
 
@@ -38,7 +38,7 @@ export function Tray(props: TrayProps) {
         <div className="tray-head">
           <div className="tray-title">
             <span>Cleaned</span>
-            <span className="muted small">{cleanup.items.length} items</span>
+            <span className="muted small">{items(cleanup.items.length)}</span>
           </div>
           <strong className="tray-total mono">{formatBytes(report.freed)}</strong>
         </div>
@@ -52,8 +52,14 @@ export function Tray(props: TrayProps) {
         </div>
         {report.failed.length > 0 && (
           <div className="note warn">
-            {report.failed.length} {report.failed.length === 1 ? "path" : "paths"} couldn't be removed:{" "}
-            {report.failed.map((f) => `${f.path.split("/").pop()} (${f.error})`).join(", ")}
+            {report.failed.length} {report.failed.length === 1 ? "path" : "paths"} couldn't be removed:
+            <ul className="fail-list">
+              {report.failed.map((f) => (
+                <li key={f.path}>
+                  <b>{f.path.split("/").pop()}</b> · {f.error}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
         <div className="note ok">
@@ -98,7 +104,7 @@ export function Tray(props: TrayProps) {
       <div className="tray-head">
         <div className="tray-title">
           <span>Cleanup tray</span>
-          <span className="muted small">{goal ? `${entries.length} items` : "shared across tabs"}</span>
+          <span className="muted small">{goal ? items(entries.length) : "shared across tabs"}</span>
         </div>
         <div className="tray-sum">
           <strong className="tray-total mono">{formatBytes(sum)}</strong>
@@ -107,7 +113,7 @@ export function Tray(props: TrayProps) {
               {goal.gb === 0 ? "no goal set" : met ? `✓ goal of ${goal.gb} GB met` : `${formatBytes(goal.gb * GB - sum)} short of goal`}
             </span>
           ) : (
-            <span className="small muted">{entries.length} items</span>
+            <span className="small muted">{items(entries.length)}</span>
           )}
         </div>
         {goal ? (
@@ -214,7 +220,8 @@ function ConfirmSheet({
         <div className="confirm-head">
           <h2>Clean {formatBytes(sum)}?</h2>
           <p className="muted">
-            {entries.length} items{disk ? ` · ${formatBytes(disk.available + sum)} free afterwards` : ""}
+            {items(entries.length)}
+            {disk ? ` · ${formatBytes(disk.available + sum)} free afterwards` : ""}
           </p>
         </div>
         <div className="confirm-groups">

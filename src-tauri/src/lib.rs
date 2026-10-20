@@ -13,6 +13,7 @@ pub mod scanner;
 mod settings;
 
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -364,6 +365,13 @@ struct CleanReport {
     failed: Vec<Failure>,
 }
 
+/// The size of `path` in the scanned tree, if it's in there.
+fn in_tree_size(state: &AppState, path: &Path) -> Option<u64> {
+    let guard = state.result.lock().unwrap();
+    let result = guard.as_ref()?;
+    result.tree.find(path.strip_prefix(&result.root).ok()?).map(|n| n.size)
+}
+
 /// Takes `path` out of the scanned tree, returning its size, and keeps it for a later restore.
 fn take_from_tree(state: &AppState, path: &Path) -> u64 {
     let mut guard = state.result.lock().unwrap();
@@ -399,26 +407,40 @@ fn run_cleanup(app: &AppHandle, items: Vec<CleanRequest>, mode: cleanup::Mode) -
     let state = app.state::<AppState>();
     let home = app.path().home_dir().map_err(|e| e.to_string())?;
     let total = items.iter().map(|i| i.paths.len()).sum();
-    let (mut done, mut failed, mut cleaned) = (0, Vec::new(), Vec::new());
+    let mut done = 0;
+    let mut failed = Vec::new();
+    // Per item: label, bytes removed, what was removed.
+    let mut results: Vec<(String, u64, Vec<history::Removed>)> = Vec::new();
+    // App bundles the user can't remove (installed for all users): (item index, path, size).
+    let mut needs_admin: Vec<(usize, PathBuf, u64)> = Vec::new();
 
-    for item in items {
+    for (index, item) in items.into_iter().enumerate() {
         let (mut size, mut removed) = (0, Vec::new());
         for path in item.paths {
             let _ = app.emit("cleanup-progress", CleanProgress { done, total, current: path.clone() });
+            done += 1;
             let p = PathBuf::from(&path);
+            let is_app = p.extension().is_some_and(|e| e == "app");
             // App bundles live outside home and get their own checks; everything else must be in home.
-            let allowed = if p.extension().is_some_and(|e| e == "app") && !p.starts_with(&home) {
+            let allowed = if is_app && !p.starts_with(&home) {
                 apps::check_removable(&p, &home)
             } else {
-                cleanup::check(&p, &home).and_then(|_| if p.extension().is_some_and(|e| e == "app") { apps::check_removable(&p, &home) } else { Ok(()) })
+                cleanup::check(&p, &home).and_then(|_| if is_app { apps::check_removable(&p, &home) } else { Ok(()) })
             };
-            let outcome = allowed.and_then(|_| match mode {
-                cleanup::Mode::Trash => cleanup::move_to_trash(&p).map(Some).map_err(|e| e.to_string()),
-                cleanup::Mode::Delete => cleanup::delete(&p).map(|_| None).map_err(|e| e.to_string()),
-            });
+            if let Err(error) = allowed {
+                failed.push(Failure { path, error });
+                continue;
+            }
+            // Outside the scanned tree (e.g. /Applications), measure before it's gone.
+            let outside = in_tree_size(&state, &p).is_none();
+            let measured = if outside { apps::size_of(&p) } else { 0 };
+            let outcome = match mode {
+                cleanup::Mode::Trash => cleanup::move_to_trash(&p).map(Some),
+                cleanup::Mode::Delete => cleanup::delete(&p).map(|_| None),
+            };
             match outcome {
                 Ok(trashed) => {
-                    size += take_from_tree(&state, &p);
+                    size += if outside { measured } else { take_from_tree(&state, &p) };
                     removed.push(history::Removed {
                         original: path,
                         in_trash: trashed.is_some(),
@@ -426,15 +448,47 @@ fn run_cleanup(app: &AppHandle, items: Vec<CleanRequest>, mode: cleanup::Mode) -
                         restored: false,
                     });
                 }
-                Err(error) => failed.push(Failure { path, error }),
+                Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied && is_app && !p.starts_with(&home) => {
+                    needs_admin.push((index, p, measured));
+                }
+                Err(e) => failed.push(Failure { path, error: e.to_string() }),
             }
-            done += 1;
         }
-        if !removed.is_empty() {
-            cleaned.push(history::CleanedItem { label: item.label, size, paths: removed });
+        results.push((item.label, size, removed));
+    }
+
+    // One password prompt for every app that needs it.
+    if !needs_admin.is_empty() {
+        let paths: Vec<PathBuf> = needs_admin.iter().map(|(_, p, _)| p.clone()).collect();
+        match cleanup::admin_remove(&paths, mode, &home) {
+            Ok(destinations) => {
+                for ((index, path, size), trashed) in needs_admin.into_iter().zip(destinations) {
+                    if fs::symlink_metadata(&path).is_ok() {
+                        failed.push(Failure { path: path.to_string_lossy().into_owned(), error: "Still there after removing".into() });
+                        continue;
+                    }
+                    results[index].1 += size;
+                    results[index].2.push(history::Removed {
+                        original: path.to_string_lossy().into_owned(),
+                        in_trash: trashed.is_some(),
+                        trashed: trashed.map(|t| t.to_string_lossy().into_owned()),
+                        restored: false,
+                    });
+                }
+            }
+            Err(e) => {
+                for (_, path, _) in needs_admin {
+                    failed.push(Failure { path: path.to_string_lossy().into_owned(), error: e.to_string() });
+                }
+            }
         }
     }
 
+    let cleaned: Vec<history::CleanedItem> = results
+        .into_iter()
+        .filter(|(_, _, removed)| !removed.is_empty())
+        .map(|(label, size, paths)| history::CleanedItem { label, size, paths })
+        .collect();
     let cleanup = (!cleaned.is_empty()).then(|| history::Cleanup {
         id: format!("{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()),
         at: now(),

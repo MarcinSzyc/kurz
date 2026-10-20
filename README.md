@@ -42,7 +42,7 @@ Kurz scans your home folder, builds a size tree of every file and folder, sugges
 - Nothing happens until you choose it. Recommendations are only suggestions.
 - Scanning only reads; it never changes anything on disk.
 - Some places Kurz never touches: Documents, Desktop, Pictures, Movies, Music, iCloud Drive, Mail, Messages, Keychains, `~/.ssh`, `~/.gnupg`.
-- Outside your home folder Kurz removes only app bundles, and only when you uninstall them: `*.app` in `/Applications` or `~/Applications`, never apps that are part of macOS, and a running app is asked to quit first (if it doesn't, it's skipped).
+- Outside your home folder Kurz removes only app bundles, and only when you uninstall them: `*.app` in `/Applications` or `~/Applications`, never apps that are part of macOS, and a running app is asked to quit first (if it doesn't, it's skipped). Apps installed for all users (owned by `root`, typically by a `.pkg` installer) can only be removed as an administrator: Kurz asks once per cleanup through the macOS password dialog, as Finder does, and never sees the password. Moved to the Trash, such an app is handed back to you, so Undo and Empty from Trash work as usual.
 - Nothing leaves your Mac. Kurz makes no network requests.
 
 ## How it works
