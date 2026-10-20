@@ -1,6 +1,7 @@
+mod disk;
 pub mod scanner;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -13,6 +14,9 @@ use scanner::{Kind, Node, Progress};
 
 /// Children beyond this many are folded into a single "rest" entry.
 const MAX_CHILDREN: usize = 150;
+/// Children smaller than this share of the requested subtree are folded too,
+/// so a deep tree stays small enough to send to the UI.
+const MIN_SHARE: f64 = 0.0005;
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(150);
 
 struct ScanResult {
@@ -80,15 +84,15 @@ fn kind_name(kind: Kind) -> &'static str {
     }
 }
 
-fn view(node: &Node, path: PathBuf, depth: u32) -> NodeView {
+fn view(node: &Node, path: PathBuf, depth: u32, min_size: u64) -> NodeView {
     let children = (depth > 0 && !node.children.is_empty()).then(|| {
-        let mut views: Vec<NodeView> = node
-            .children
+        // Children are sorted by size, so the shown ones are a prefix.
+        let shown = node.children.iter().take(MAX_CHILDREN).take_while(|c| c.size >= min_size).count();
+        let mut views: Vec<NodeView> = node.children[..shown]
             .iter()
-            .take(MAX_CHILDREN)
-            .map(|c| view(c, path.join(&*c.name), depth - 1))
+            .map(|c| view(c, path.join(&*c.name), depth - 1, min_size))
             .collect();
-        let rest = &node.children[node.children.len().min(MAX_CHILDREN)..];
+        let rest = &node.children[shown..];
         if !rest.is_empty() {
             views.push(NodeView {
                 name: format!("{} more items", rest.len()),
@@ -168,6 +172,11 @@ fn start_scan(app: AppHandle, state: State<AppState>, path: String) -> Result<()
 }
 
 #[tauri::command]
+fn disk_info(path: String) -> Result<disk::DiskInfo, String> {
+    disk::disk_info(Path::new(&path)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn cancel_scan(state: State<AppState>) {
     state.cancel.store(true, Ordering::SeqCst);
 }
@@ -180,7 +189,8 @@ fn get_tree(state: State<AppState>, path: Option<String>, depth: u32) -> Result<
     let path = path.map_or_else(|| result.root.clone(), PathBuf::from);
     let relative = path.strip_prefix(&result.root).map_err(|_| "Path is outside the scanned folder")?;
     let node = result.tree.find(relative).ok_or("Path not found in the scan")?;
-    Ok(view(node, path, depth))
+    let min_size = (node.size as f64 * MIN_SHARE) as u64;
+    Ok(view(node, path, depth, min_size))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -188,7 +198,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(AppState::default())
-        .invoke_handler(tauri::generate_handler![home_dir, start_scan, cancel_scan, get_tree])
+        .invoke_handler(tauri::generate_handler![home_dir, disk_info, start_scan, cancel_scan, get_tree])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
