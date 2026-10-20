@@ -26,17 +26,23 @@ export const RISKS: { id: Risk; title: string; desc: string; badge: string; shee
   },
 ];
 
-const riskOrder = (r: Risk) => RISKS.findIndex((x) => x.id === r);
-
-/** The goal's picks: safest first, then largest, until the goal is met. */
+/**
+ * The goal's picks: safest group first. Within a group, the largest items go in first, but once
+ * the rest of the goal is smaller than an item, the smallest item that still covers it is taken
+ * instead, so a few hundred MB short never pulls in a huge item.
+ */
 export function autoPick(items: Recommendation[], goalBytes: number): string[] {
-  const order = [...items].sort((a, b) => riskOrder(a.risk) - riskOrder(b.risk) || b.size - a.size);
   const picked: string[] = [];
   let sum = 0;
-  for (const item of order) {
-    if (sum >= goalBytes) break;
-    picked.push(item.id);
-    sum += item.size;
+  for (const risk of RISKS) {
+    const pool = items.filter((i) => i.risk === risk.id).sort((a, b) => a.size - b.size);
+    while (sum < goalBytes && pool.length) {
+      const rest = goalBytes - sum;
+      const fit = pool.findIndex((i) => i.size >= rest);
+      const [pick] = pool.splice(fit >= 0 ? fit : pool.length - 1, 1);
+      picked.push(pick.id);
+      sum += pick.size;
+    }
   }
   return picked;
 }

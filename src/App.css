@@ -19,6 +19,7 @@
   --short: oklch(0.52 0.13 30);
   --danger: oklch(0.55 0.15 30);
   --track: #e6e3dc;
+  --used: #8f8b83;
   --error: #b42318;
   --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
@@ -70,6 +71,7 @@
     --short: oklch(0.78 0.1 30);
     --danger: oklch(0.78 0.1 30);
     --track: #2a2a27;
+    --used: #4a4945;
     --error: #f97066;
 
     --tint-safe: oklch(0.25 0.025 160);
@@ -1001,7 +1003,7 @@ button.link.strong {
 }
 
 .diskbar-track span {
-  background: color-mix(in oklab, var(--text) 75%, var(--bg));
+  background: var(--used);
   transition: width 0.3s;
 }
 
@@ -1108,6 +1110,12 @@ button.link.strong {
   white-space: nowrap;
   font-size: 11px;
   color: var(--muted);
+}
+
+/* Near the right edge, hang the label to the left of its tick. */
+.goal-mark.end {
+  align-items: flex-end;
+  transform: translateX(-100%);
 }
 
 .goal-mark span {

@@ -52,7 +52,7 @@ export function CleanUp(props: Props) {
           <div className="goal-slider">
             <input type="range" min={0} max={maxGb} step={1} value={Math.min(goal, maxGb)} onChange={(e) => props.onGoal(Number(e.target.value))} />
             {marks.map((m) => (
-              <div key={m.label} className="goal-mark" style={{ left: `${m.pct}%` }}>
+              <div key={m.label} className={`goal-mark ${m.pct > 80 ? "end" : ""}`} style={{ left: `${m.pct}%` }}>
                 <span />
                 {m.label}
               </div>
