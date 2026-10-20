@@ -2,18 +2,22 @@ import { useEffect, useState } from "react";
 import {
   cancelScan,
   diskInfo,
+  getMenuBarSettings,
   getTree,
   homeDir,
   onScanDone,
+  onOpenSettings,
   onScanProgress,
   startScan,
   type DiskInfo,
+  type MenuBarSettings,
   type ScanDone,
   type ScanProgress,
   type TreeNode,
 } from "./lib/api";
 import { StatsBar } from "./components/StatsBar";
 import { Explorer, type ExplorerView } from "./components/Explorer";
+import { MenuBarSettingsPanel } from "./components/MenuBarSettings";
 import "./App.css";
 
 /** Levels sent to the map: a folder, its children and grandchildren as tiles inside. */
@@ -30,6 +34,8 @@ function App() {
   const [node, setNode] = useState<TreeNode | null>(null);
   const [view, setView] = useState<ExplorerView>("map");
   const [error, setError] = useState<string | null>(null);
+  const [menuBar, setMenuBar] = useState<MenuBarSettings | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const fail = (e: unknown) => setError(String(e));
 
@@ -46,7 +52,9 @@ function App() {
       setHome(h);
       refreshDisk(h);
     }, fail);
+    getMenuBarSettings().then(setMenuBar, fail);
     const unlisten = [
+      onOpenSettings(() => setSettingsOpen(true)),
       onScanProgress(setProgress),
       onScanDone((d) => {
         setDone(d);
@@ -82,13 +90,18 @@ function App() {
           <h1>Kurz</h1>
           <p className="muted">{home ?? "Locating home folder…"}</p>
         </div>
-        {status === "scanning" ? (
-          <button onClick={() => cancelScan()}>Cancel</button>
-        ) : (
-          <button className="primary" onClick={scan} disabled={!home}>
-            {status === "done" ? "Scan again" : "Scan home folder"}
+        <div className="actions">
+          <button onClick={() => setSettingsOpen(true)} disabled={!menuBar}>
+            Menu bar…
           </button>
-        )}
+          {status === "scanning" ? (
+            <button onClick={() => cancelScan()}>Cancel</button>
+          ) : (
+            <button className="primary" onClick={scan} disabled={!home}>
+              {status === "done" ? "Scan again" : "Scan home folder"}
+            </button>
+          )}
+        </div>
       </header>
 
       <StatsBar disk={disk} progress={progress} scanning={status === "scanning"} />
@@ -104,6 +117,9 @@ function App() {
             {status === "scanning" ? "Scanning… the map appears when the scan finishes." : "Scan your home folder to see what takes up space."}
           </p>
         </section>
+      )}
+      {settingsOpen && menuBar && (
+        <MenuBarSettingsPanel initial={menuBar} disk={disk} onClose={() => setSettingsOpen(false)} onSaved={setMenuBar} />
       )}
     </main>
   );

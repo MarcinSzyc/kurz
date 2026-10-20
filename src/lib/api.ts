@@ -3,10 +3,13 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export type NodeKind = "dir" | "file" | "symlink" | "other" | "rest";
 
+export type Category = "media" | "code" | "devTools" | "sdk" | "aiModels" | "cache" | "system" | "other";
+
 export interface TreeNode {
   name: string;
   path: string;
   kind: NodeKind;
+  category: Category;
   size: number;
   files: number;
   children: TreeNode[] | null;
@@ -48,3 +51,18 @@ export interface DiskInfo {
 }
 
 export const diskInfo = (path: string) => invoke<DiskInfo>("disk_info", { path });
+
+export type MenuBarText = "percentUsed" | "usedOfTotal" | "free" | "none";
+
+export interface MenuBarSettings {
+  enabled: boolean;
+  text: MenuBarText;
+  warnAt: number;
+  criticalAt: number;
+  refreshMinutes: number;
+}
+
+export const getMenuBarSettings = () => invoke<MenuBarSettings>("get_menu_bar_settings");
+export const setMenuBarSettings = (settings: MenuBarSettings) =>
+  invoke<MenuBarSettings>("set_menu_bar_settings", { settings });
+export const onOpenSettings = (cb: () => void): Promise<UnlistenFn> => listen("open-settings", () => cb());

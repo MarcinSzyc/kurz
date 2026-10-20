@@ -20,7 +20,8 @@ Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folder
 | Lista największych pozycji z nawigacją w głąb folderów | ✅ gotowe |
 | Informacje o dysku i skanie: pojemność, zajęte i wolne miejsce, rozmiar folderu domowego, liczba plików, czas | ✅ gotowe |
 | Mapa kafelkowa (treemap): wielkość kafelka odpowiada zajmowanemu miejscu, kliknięcie wchodzi do folderu, przełącznik mapa/lista | ✅ gotowe |
-| Kolorowanie według kategorii: dokumenty, kod, SDK, modele AI, cache pakietów | 📋 planowane |
+| Kolorowanie według kategorii z legendą: dokumenty, kod (repozytoria git), narzędzia deweloperskie, SDK, modele AI, cache, Library | ✅ gotowe |
+| Wskaźnik w pasku menu macOS: pierścień zajętości dysku, konfigurowalny tekst, kolor pomarańczowy/czerwony po przekroczeniu progów | ✅ gotowe |
 | Rekomendacje „bezpieczne do usunięcia” i „do przejrzenia”, np. cache npm, `.next`, DerivedData, modele Ollama | 📋 planowane |
 | Czyszczenie przez przeniesienie do Kosza albo skopiowanie gotowego skryptu shell | 📋 planowane |
 
@@ -43,6 +44,9 @@ Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folder
 │  Rdzeń (Rust)   ▼                                                 │
 │    • scanner.rs: równoległe przejście po katalogach (rayon)       │
 │    • disk.rs: pojemność wolumenu (statfs)                         │
+│    • categories.rs: kategorie folderów (kolory mapy)              │
+│    • menubar.rs + gauge.rs: wskaźnik w pasku menu                 │
+│    • settings.rs: ustawienia w pliku JSON                         │
 │    • drzewo rozmiarów trzymane w pamięci                          │
 └───────────────────────────────────────────────────────────────────┘
 ```
@@ -117,6 +121,12 @@ cd src-tauri && cargo test
 cd src-tauri && cargo run --release --example scan -- ~/Projects
 ```
 
+### Pasek menu
+
+Kurz pokazuje w pasku menu macOS mały pierścień, który zapełnia się razem z dyskiem, i krótki tekst: procent zajętego miejsca, zajęte z całości albo wolne miejsce. Od 80% pierścień robi się pomarańczowy, od 90% czerwony. Progi, tekst i częstotliwość odświeżania ustawisz w **Menu bar…** w oknie aplikacji. Ustawienia trafiają do `~/Library/Application Support/com.marcinszyc.kurz/settings.json`.
+
+Gdy wskaźnik jest włączony, zamknięcie okna tylko je chowa i Kurz działa dalej w pasku menu. Okno otworzysz z menu wskaźnika albo klikając ikonę w Docku. Żeby zamknąć aplikację, wybierz **Quit Kurz** z menu wskaźnika.
+
 ### Uprawnienia macOS
 
 Przy pierwszym skanie macOS zapyta o dostęp do Biurka, Dokumentów i Pobranych. Żeby przeskanować wszystko, także dane aplikacji w `~/Library`, nadaj Kurz pełny dostęp do dysku: **Ustawienia systemowe → Prywatność i ochrona → Pełny dostęp do dysku**. Bez tego część folderów pojawi się jako „nieczytelne”.
@@ -127,11 +137,15 @@ Przy pierwszym skanie macOS zapyta o dostęp do Biurka, Dokumentów i Pobranych.
 kurz/
 ├── src/                    # interfejs (React + TypeScript)
 │   ├── App.tsx
-│   ├── components/         # StatsBar, Explorer, Treemap
+│   ├── components/         # StatsBar, Explorer, Treemap, MenuBarSettings
 │   └── lib/                # wywołania Rusta, formatowanie
 ├── src-tauri/              # rdzeń (Rust)
 │   ├── src/scanner.rs      # równoległy skaner + testy
 │   ├── src/disk.rs         # informacje o wolumenie
+│   ├── src/categories.rs   # kategorie folderów
+│   ├── src/menubar.rs      # wskaźnik w pasku menu
+│   ├── src/gauge.rs        # rysowanie ikony-pierścienia
+│   ├── src/settings.rs     # ustawienia (JSON)
 │   ├── src/lib.rs          # polecenia i zdarzenia Tauri
 │   ├── examples/scan.rs    # benchmark z linii poleceń
 │   └── tauri.conf.json     # konfiguracja okna i paczki

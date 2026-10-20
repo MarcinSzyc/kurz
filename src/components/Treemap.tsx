@@ -3,8 +3,6 @@ import { hierarchy, treemap, treemapSquarify, type HierarchyRectangularNode } fr
 import type { TreeNode } from "../lib/api";
 import { formatBytes } from "../lib/format";
 
-/** Hues for the top-level tiles, picked to stay distinct as pastels. */
-const HUES = [250, 340, 150, 30, 200, 280, 90, 10, 180, 55];
 /** Space reserved for a folder's name above its children. */
 const HEADER = { 1: 24, 2: 18 } as Record<number, number>;
 const MAX_DEPTH = 3;
@@ -67,12 +65,6 @@ export function Treemap({ node, onOpen }: Props) {
   );
 }
 
-function topAncestorIndex(d: Rect): number {
-  let top = d;
-  while (top.depth > 1 && top.parent) top = top.parent;
-  return top.parent?.children?.indexOf(top) ?? 0;
-}
-
 function Tile({ d, onOpen }: { d: Rect; onOpen: (path: string) => void }) {
   const w = d.x1 - d.x0;
   const h = d.y1 - d.y0;
@@ -84,13 +76,12 @@ function Tile({ d, onOpen }: { d: Rect; onOpen: (path: string) => void }) {
 
   return (
     <div
-      className={`tile depth-${d.depth} ${data.kind} ${openable ? "openable" : ""}`}
+      className={`tile depth-${d.depth} ${data.kind} cat-${data.category} ${openable ? "openable" : ""}`}
       style={{
         left: d.x0,
         top: d.y0,
         width: w,
         height: h,
-        ["--h" as string]: HUES[topAncestorIndex(d) % HUES.length],
       }}
       title={`${data.kind === "rest" ? data.name + " in " : ""}${data.path}\n${formatBytes(data.size)}`}
       onClick={(e) => {

@@ -1,5 +1,6 @@
 import type { TreeNode } from "../lib/api";
 import { formatBytes } from "../lib/format";
+import { CATEGORIES, sizeByCategory } from "../lib/categories";
 import { Treemap } from "./Treemap";
 
 export type ExplorerView = "map" | "list";
@@ -46,7 +47,28 @@ export function Explorer({ node, root, view, onViewChange, onOpen }: Props) {
         <span className="size">{formatBytes(node.size)}</span>
       </nav>
       {view === "map" ? <Treemap node={node} onOpen={onOpen} /> : <Listing node={node} onOpen={onOpen} />}
+      <Legend node={node} />
     </section>
+  );
+}
+
+function Legend({ node }: { node: TreeNode }) {
+  const sizes = sizeByCategory(node);
+  const shown = CATEGORIES.filter((c) => (sizes.get(c.id) ?? 0) > 0);
+  return (
+    <footer className="legend">
+      {shown.map((c) => (
+        <span key={c.id} className="legend-item">
+          <i className={`swatch cat-${c.id}`} />
+          {c.label}
+          <span className="size">{formatBytes(sizes.get(c.id) ?? 0)}</span>
+        </span>
+      ))}
+      <span className="legend-item">
+        <i className="swatch rest" />
+        Smaller items, grouped
+      </span>
+    </footer>
   );
 }
 
@@ -60,7 +82,7 @@ function Listing({ node, onOpen }: { node: TreeNode; onOpen: (path: string) => v
           <li key={child.path + child.name}>
             <button className="row" disabled={!canOpen} onClick={() => onOpen(child.path)}>
               <span className="name">
-                {child.kind === "dir" ? "📁" : child.kind === "rest" ? "…" : "📄"} {child.name}
+                <i className={`swatch cat-${child.category}`} /> {child.name}
               </span>
               <span className="bar">
                 <span style={{ width: `${(child.size / largest) * 100}%` }} />
