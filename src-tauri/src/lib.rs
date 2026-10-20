@@ -463,6 +463,33 @@ fn restore_cleanup(app: AppHandle, state: State<AppState>, id: String, paths: Op
     Ok(failed)
 }
 
+/// Deletes for good the items a cleanup moved to the Trash, freeing their space.
+/// Only those items: the rest of the Trash is left alone.
+#[tauri::command]
+fn purge_cleanup(app: AppHandle, id: String) -> Result<Vec<Failure>, String> {
+    let path = history_path(&app)?;
+    let mut all = history::load(&path);
+    let cleanup = all.cleanups.iter_mut().find(|c| c.id == id).ok_or("That cleanup isn't in the history")?;
+    let trash = app.path().home_dir().map_err(|e| e.to_string())?.join(".Trash");
+    let mut failed = Vec::new();
+    for removed in cleanup.items.iter_mut().flat_map(|i| i.paths.iter_mut()) {
+        let Some(trashed) = removed.trashed.clone().filter(|_| !removed.restored) else { continue };
+        let trashed = PathBuf::from(trashed);
+        // Only ever delete inside the Trash.
+        if !trashed.starts_with(&trash) {
+            failed.push(Failure { path: removed.original.clone(), error: "Not in the Trash".into() });
+            continue;
+        }
+        match cleanup::delete(&trashed) {
+            Ok(()) => removed.trashed = None,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => removed.trashed = None,
+            Err(e) => failed.push(Failure { path: removed.original.clone(), error: e.to_string() }),
+        }
+    }
+    history::save(&path, &all).map_err(|e| e.to_string())?;
+    Ok(failed)
+}
+
 #[tauri::command]
 fn get_history(app: AppHandle) -> Result<history::History, String> {
     Ok(history::load(&history_path(&app)?))
@@ -501,6 +528,7 @@ pub fn run() {
             get_recommendations,
             clean_up,
             restore_cleanup,
+            purge_cleanup,
             get_history,
             set_menu_bar_settings
         ])

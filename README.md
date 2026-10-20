@@ -12,7 +12,7 @@
 
 ## Co robi
 
-Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folderów, a potem pokazuje je w formie, w której od razu widać, gdzie „zbiera się kurz”.
+Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folderów, a potem podpowiada, co można bezpiecznie usunąć, i pokazuje mapę, na której od razu widać, gdzie „zbiera się kurz”. Docelowy wygląd jest w [`design/`](design/).
 
 | Funkcja | Status |
 |---|---|
@@ -23,8 +23,11 @@ Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folder
 | Kolorowanie według kategorii z legendą: dokumenty, kod (repozytoria git), narzędzia deweloperskie, SDK, modele AI, cache, Library | ✅ gotowe |
 | Wskaźnik w pasku menu macOS: pierścień zajętości dysku, konfigurowalny tekst, kolor pomarańczowy/czerwony po przekroczeniu progów | ✅ gotowe |
 | Ekran „How it works”: jak działa skan, kategorie, reguły rekomendacji i usuwania, generowany z tych samych reguł, których używa apka | ✅ gotowe |
-| Rekomendacje „bezpieczne do usunięcia” i „do przejrzenia”, np. cache npm, `.next`, DerivedData, modele Ollama | 🚧 reguły gotowe, dopasowywanie w trakcie |
-| Czyszczenie z wyborem przy każdym usunięciu: do Kosza albo na stałe; alternatywnie gotowy skrypt shell | 📋 planowane |
+| Ekran **Clean up**: cel „I need X GB” sam napełnia koszyk najbezpieczniejszymi pozycjami; trzy grupy: *Safe to delete*, *Rebuildable*, *Take a look*; data ostatniej zmiany każdej pozycji | ✅ gotowe |
+| Czyszczenie z wyborem przy każdym usunięciu: do Kosza albo na stałe; Undo; „Empty from Trash” usuwa tylko pozycje z tego sprzątania | ✅ gotowe |
+| Nowa mapa według designu, wspólny koszyk z Clean up | 📋 następne |
+| Zakładka **History**: wolne miejsce w czasie, przywracanie poprzednich sprzątań, foldery, które odrastają | 📋 planowane |
+| Gotowy skrypt shell zamiast usuwania z apki | 📋 planowane |
 
 ### Zasady bezpieczeństwa
 
@@ -63,7 +66,8 @@ Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folder
    - folder bez uprawnień zalicza jako „nieczytelny” i skanuje dalej.
 4. **Drzewo w pamięci.** Wynik skanu to drzewo w pamięci procesu Rust. Interfejs pobiera tylko fragment, który akurat pokazuje (`get_tree(path, depth)`). Pozycje zbyt małe, by były widoczne, są łączone w jedną, więc nawet przy milionach plików do interfejsu trafia niewiele danych.
 
-5. **Rekomendacje.** Reguły w [`rules.rs`](src-tauri/src/rules.rs) opisują, co Kurz może zaproponować do usunięcia: ścieżkę albo nazwę folderu z warunkiem (np. `node_modules` obok `package.json`, tylko w projektach nieruszanych od 30 dni), poziom ryzyka (*Safe* albo *Review*), powód i sposób przywrócenia. Lista miejsc chronionych jest w tym samym pliku, a testy pilnują, żeby żadna reguła do nich nie sięgała. Pełny opis jest w apce, w zakładce **How it works**, generowanej prosto z tych reguł.
+5. **Usuwanie.** Tuż przed usunięciem każda ścieżka jest sprawdzana ponownie: czy istnieje, czy leży w folderze domowym (także po rozwinięciu dowiązań) i czy nie jest w miejscu chronionym. Kosz obsługuje systemowe `NSFileManager`. Kurz zapamiętuje, gdzie w Koszu trafiła każda pozycja, więc Undo odkłada ją na miejsce, a historia sprzątań trafia do `history.json` obok ustawień.
+6. **Rekomendacje.** Reguły w [`rules.rs`](src-tauri/src/rules.rs) opisują, co Kurz może zaproponować do usunięcia: ścieżkę albo nazwę folderu z warunkiem (np. `node_modules` obok `package.json`, tylko w projektach nieruszanych od 30 dni), poziom ryzyka (*Safe* albo *Review*), powód i sposób przywrócenia. Lista miejsc chronionych jest w tym samym pliku, a testy pilnują, żeby żadna reguła do nich nie sięgała. Pełny opis jest w apce, w zakładce **How it works**, generowanej prosto z tych reguł.
 
 **Bazy danych nie ma i nie jest potrzebna.** Drzewo z ~3 mln plików mieści się w kilkuset MB RAM i powstaje od nowa przy każdym skanie. Na dysk w przyszłości trafią najwyżej ustawienia (mały plik JSON) i ewentualnie cache ostatniego skanu.
 
@@ -142,7 +146,7 @@ Przy pierwszym skanie macOS zapyta o dostęp do Biurka, Dokumentów i Pobranych.
 kurz/
 ├── src/                    # interfejs (React + TypeScript)
 │   ├── App.tsx
-│   ├── components/         # StatsBar, Explorer, Treemap, MenuBarSettings, HowItWorks
+│   ├── components/         # CleanUp, Explorer, Treemap, MenuBarSettings, HowItWorks
 │   └── lib/                # wywołania Rusta, formatowanie
 ├── src-tauri/              # rdzeń (Rust)
 │   ├── src/scanner.rs      # równoległy skaner + testy
@@ -152,10 +156,13 @@ kurz/
 │   ├── src/gauge.rs        # rysowanie ikony-pierścienia
 │   ├── src/settings.rs     # ustawienia (JSON)
 │   ├── src/rules.rs        # reguły rekomendacji i miejsca chronione
+│   ├── src/recommend.rs    # dopasowanie reguł do skanu
+│   ├── src/cleanup.rs      # sprawdzanie ścieżek, Kosz, usuwanie, przywracanie
+│   ├── src/history.rs      # historia sprzątań (JSON)
 │   ├── src/lib.rs          # polecenia i zdarzenia Tauri
 │   ├── examples/scan.rs    # benchmark z linii poleceń
 │   └── tauri.conf.json     # konfiguracja okna i paczki
-└── design/                 # ikona (źródło SVG i PNG 1024×1024)
+└── design/                 # docelowy design (mockup.html) i ikona
 ```
 
 ## Jak powstaje ten projekt

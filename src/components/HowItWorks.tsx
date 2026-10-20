@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { howItWorks, type HowItWorksInfo, type RuleInfo } from "../lib/api";
 import { CATEGORIES } from "../lib/categories";
+import { RISKS } from "../lib/tray";
 
 /** Explains, from the app's own rules, how scanning, recommendations and removal work. */
 export function HowItWorks() {
@@ -14,8 +15,6 @@ export function HowItWorks() {
   if (error) return <p className="error">{error}</p>;
   if (!info) return null;
 
-  const safe = info.rules.filter((r) => r.risk === "safe");
-  const review = info.rules.filter((r) => r.risk === "review");
 
   return (
     <section className="panel docs">
@@ -82,15 +81,12 @@ export function HowItWorks() {
           <h2>Recommendations</h2>
           <p>
             After a scan, Kurz checks these rules against the map. When a folder matches, nothing inside it is matched again, so no byte
-            is counted twice. A project is <em>idle</em> when nothing in it changed for {info.idleDays} days.
+            is counted twice, and anything under 50 MB is left out. A project is <em>idle</em> when nothing in it changed for{" "}
+            {info.idleDays} days. Each item shows when anything in it last changed.
           </p>
-          <RuleTable title="Safe to remove" note="Tools recreate these on their own and they hold none of your data." rules={safe} risk="safe" />
-          <RuleTable
-            title="Review first"
-            note="Restorable, but at a cost: a reinstall, a big download, or data on a device you may still use."
-            rules={review}
-            risk="review"
-          />
+          {RISKS.map((risk) => (
+            <RuleTable key={risk.id} title={risk.title} note={risk.desc} rules={info.rules.filter((r) => r.risk === risk.id)} risk={risk.id} />
+          ))}
         </section>
 
         <section id="never">
@@ -109,30 +105,26 @@ export function HowItWorks() {
           <h2>Removal</h2>
           <ol>
             <li>
-              <strong>You choose.</strong> Nothing is selected for you; <em>Select safe</em> ticks the safe group in one click.
+              <strong>You fill the tray.</strong> Set how much space you need and Kurz fills the tray with the safest, largest items first.
+              Add or remove anything by hand.
             </li>
             <li>
-              <strong>You confirm, and pick how.</strong> The confirmation lists every path and the total, highlights items to review, and
-              asks every time: <em>Move to Trash</em> (the default, recoverable with Put Back) or <em>Delete permanently</em> (frees space
-              right away, cannot be undone).
+              <strong>You confirm, and pick how.</strong> The confirmation sums the tray up by risk and asks every time:{" "}
+              <em>Move to Trash</em> (the default) or <em>Delete permanently</em> (frees space right away, cannot be undone).
             </li>
             <li>
-              <strong>Kurz checks again.</strong> Right before removing, each path is re-checked: it still exists, stays inside your home
-              folder after resolving links, still matches its rule, and isn't in a protected place. Anything that fails is skipped.
+              <strong>Kurz checks again.</strong> Right before removing, each path is re-checked: it still exists, it's inside your home
+              folder even after resolving symlinks, and it isn't in a protected place. Anything that fails is skipped and reported.
             </li>
             <li>
-              <strong>One item at a time.</strong> Progress is shown live; if one item fails (permissions, in use), the rest continue and the
-              failure is reported.
+              <strong>One path at a time.</strong> Progress is shown live; if one path fails (permissions, in use), the rest continue.
             </li>
             <li>
-              <strong>The map updates</strong> without a new scan, and the summary shows what was freed. Items moved to the Trash still use
-              space until you empty it.
+              <strong>Undo, or free it for good.</strong> Kurz remembers where each item went in the Trash, so <em>Undo</em> puts it back.
+              Items in the Trash still use space: <em>Empty from Trash</em> deletes just that cleanup's items and leaves the rest of your
+              Trash alone.
             </li>
           </ol>
-          <p>
-            Prefer doing it yourself? <em>Copy script</em> copies a shell script with the same paths, using each tool's own cleanup command
-            where one exists, and asks for confirmation before it runs.
-          </p>
         </section>
       </article>
     </section>
