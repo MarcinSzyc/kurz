@@ -23,7 +23,8 @@ Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folder
 | Ekran **Clean up**: cel „I need X GB” sam napełnia koszyk najbezpieczniejszymi pozycjami; trzy grupy: *Safe to delete*, *Rebuildable*, *Take a look*; data ostatniej zmiany każdej pozycji | ✅ gotowe |
 | Czyszczenie z wyborem przy każdym usunięciu: do Kosza albo na stałe; Undo; „Empty from Trash” usuwa tylko pozycje z tego sprzątania | ✅ gotowe |
 | Ekran **Map**: spokojna mapa kafelkowa z dwoma poziomami, kolory według kategorii, kliknięcie kafelka dodaje folder do koszyka wspólnego z Clean up, › wchodzi do folderu, „Only removable” przygasza foldery z Twoimi plikami | ✅ gotowe |
-| Zakładka **History**: wolne miejsce w czasie, przywracanie poprzednich sprzątań, foldery, które odrastają | 📋 następne |
+| Zakładka **History**: odzyskane miejsce, tempo zapełniania dysku, wykres wolnego miejsca (30/90 dni) z zaznaczonymi sprzątaniami, poprzednie sprzątania z przywracaniem pojedynczych pozycji z Kosza, foldery, które odrastają | ✅ gotowe |
+| Automatyczne cotygodniowe sprzątanie folderów, które odrastają | 📋 planowane |
 | Gotowy skrypt shell zamiast usuwania z apki | 📋 planowane |
 
 ### Zasady bezpieczeństwa
@@ -66,7 +67,7 @@ Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folder
 5. **Usuwanie.** Tuż przed usunięciem każda ścieżka jest sprawdzana ponownie: czy istnieje, czy leży w folderze domowym (także po rozwinięciu dowiązań) i czy nie jest w miejscu chronionym. Kosz obsługuje systemowe `NSFileManager`. Kurz zapamiętuje, gdzie w Koszu trafiła każda pozycja, więc Undo odkłada ją na miejsce, a historia sprzątań trafia do `history.json` obok ustawień.
 6. **Rekomendacje.** Reguły w [`rules.rs`](src-tauri/src/rules.rs) opisują, co Kurz może zaproponować do usunięcia: ścieżkę albo nazwę folderu z warunkiem (np. `node_modules` obok `package.json`, tylko w projektach nieruszanych od 30 dni), poziom ryzyka (*Safe* albo *Review*), powód i sposób przywrócenia. Lista miejsc chronionych jest w tym samym pliku, a testy pilnują, żeby żadna reguła do nich nie sięgała. Pełny opis jest w apce, w zakładce **How it works**, generowanej prosto z tych reguł.
 
-**Bazy danych nie ma i nie jest potrzebna.** Drzewo z ~3 mln plików mieści się w kilkuset MB RAM i powstaje od nowa przy każdym skanie. Na dysk w przyszłości trafią najwyżej ustawienia (mały plik JSON) i ewentualnie cache ostatniego skanu.
+**Bazy danych nie ma i nie jest potrzebna.** Drzewo z ~3 mln plików mieści się w kilkuset MB RAM i powstaje od nowa przy każdym skanie. Na dysk trafiają tylko dwa małe pliki JSON w `~/Library/Application Support/com.marcinszyc.kurz/`: `settings.json` (ustawienia) i `history.json` (sprzątania, próbki wolnego miejsca najwyżej co godzinę, rozmiary rekomendowanych pozycji raz dziennie; dane starsze niż 120 dni są usuwane).
 
 ## Dlaczego takie technologie
 
@@ -143,7 +144,7 @@ Przy pierwszym skanie macOS zapyta o dostęp do Biurka, Dokumentów i Pobranych.
 kurz/
 ├── src/                    # interfejs (React + TypeScript)
 │   ├── App.tsx
-│   ├── components/         # CleanUp, MapView, Tray, MenuBarSettings, HowItWorks
+│   ├── components/         # CleanUp, MapView, HistoryView, Tray, MenuBarSettings, HowItWorks
 │   └── lib/                # wywołania Rusta, formatowanie
 ├── src-tauri/              # rdzeń (Rust)
 │   ├── src/scanner.rs      # równoległy skaner + testy
@@ -155,7 +156,7 @@ kurz/
 │   ├── src/rules.rs        # reguły rekomendacji i miejsca chronione
 │   ├── src/recommend.rs    # dopasowanie reguł do skanu
 │   ├── src/cleanup.rs      # sprawdzanie ścieżek, Kosz, usuwanie, przywracanie
-│   ├── src/history.rs      # historia sprzątań (JSON)
+│   ├── src/history.rs      # historia: sprzątania, wolne miejsce, rozmiary (JSON)
 │   ├── src/lib.rs          # polecenia i zdarzenia Tauri
 │   ├── examples/scan.rs    # benchmark z linii poleceń
 │   └── tauri.conf.json     # konfiguracja okna i paczki

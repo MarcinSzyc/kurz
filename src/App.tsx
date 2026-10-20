@@ -30,6 +30,7 @@ import { MapView } from "./components/MapView";
 import { Tray } from "./components/Tray";
 import { MenuBarSettingsPanel } from "./components/MenuBarSettings";
 import { HowItWorks } from "./components/HowItWorks";
+import { HistoryView } from "./components/HistoryView";
 import "./fonts.css";
 import "./App.css";
 
@@ -288,6 +289,17 @@ function App() {
 
       {page === "how" ? (
         <HowItWorks />
+      ) : page === "history" ? (
+        <HistoryView
+          onError={fail}
+          onChanged={() => {
+            if (home) refreshDisk(home);
+            if (scanned) {
+              refreshRecommendations().catch(fail);
+              if (node) open(node.path);
+            }
+          }}
+        />
       ) : status === "scanning" || !scanned ? (
         <ScanState status={status} progress={progress} cancelled={!!done?.cancelled} onScan={scan} canScan={!!home} />
       ) : page === "cleanup" ? (
@@ -306,12 +318,7 @@ function App() {
         />
       ) : page === "map" && node && done ? (
         <MapView node={node} root={done.root} items={items} tray={tray} onOpen={open} onToggleFolder={toggleFolder} trayPanel={trayPanel(false)} />
-      ) : (
-        <section className="card empty-state">
-          <h2>History</h2>
-          <p className="muted">Free space over time, past cleanups to restore from, and folders that keep growing back. Coming next.</p>
-        </section>
-      )}
+      ) : null}
 
       {settingsOpen && menuBar && (
         <MenuBarSettingsPanel initial={menuBar} disk={disk} onClose={() => setSettingsOpen(false)} onSaved={setMenuBar} />

@@ -65,11 +65,7 @@ impl Node {
         let first = names.next()?;
         let rest: PathBuf = names.collect();
         let index = self.children.iter().position(|c| &*c.name == first)?;
-        let removed = if rest.as_os_str().is_empty() {
-            self.children.remove(index)
-        } else {
-            self.children[index].remove(&rest)?
-        };
+        let removed = if rest.as_os_str().is_empty() { self.children.remove(index) } else { self.children[index].remove(&rest)? };
         self.size -= removed.size;
         self.files -= removed.files;
         Some(removed)
@@ -140,12 +136,7 @@ impl Ctx<'_> {
 /// Scans `root` and returns its tree. Returns `None` if the scan was cancelled.
 pub fn scan(root: &Path, cancel: &AtomicBool, progress: &Progress) -> std::io::Result<Option<Node>> {
     let meta = fs::symlink_metadata(root)?;
-    let ctx = Ctx {
-        root_dev: meta.dev(),
-        cancel,
-        progress,
-        seen_hard_links: Mutex::new(HashSet::new()),
-    };
+    let ctx = Ctx { root_dev: meta.dev(), cancel, progress, seen_hard_links: Mutex::new(HashSet::new()) };
     let name = root.file_name().map_or_else(|| root.to_string_lossy(), |n| n.to_string_lossy());
     let node = scan_entry(root, name.into(), &meta, &ctx);
     Ok((!cancel.load(Ordering::Relaxed)).then_some(node))

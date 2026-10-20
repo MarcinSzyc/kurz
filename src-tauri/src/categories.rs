@@ -45,8 +45,8 @@ const CACHE: &[&str] = &[
 const AI: &[&str] = &[".ollama", ".lmstudio", "huggingface", ".diffusionbee"];
 const SDK: &[&str] = &[".android", "Android", "CoreSimulator", "Xcode", "iOS DeviceSupport"];
 const DEV_TOOLS: &[&str] = &[
-    ".vscode", ".cursor", ".rustup", ".cargo", ".nvm", ".rbenv", ".rvm", ".pyenv", ".sdkman", ".docker", ".local",
-    ".config", ".bun", ".deno", ".codex", ".claude", ".zed",
+    ".vscode", ".cursor", ".rustup", ".cargo", ".nvm", ".rbenv", ".rvm", ".pyenv", ".sdkman", ".docker", ".local", ".config", ".bun",
+    ".deno", ".codex", ".claude", ".zed",
 ];
 
 /// Folder names that decide each category, for the "How it works" screen.

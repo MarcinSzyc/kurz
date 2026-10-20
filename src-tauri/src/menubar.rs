@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter, Manager, Wry};
 
 use crate::disk::{self, DiskInfo};
 use crate::gauge::{self, Level};
+use crate::history;
 use crate::settings::{MenuBarSettings, MenuBarText};
 
 const TRAY_ID: &str = "main";
@@ -21,6 +22,8 @@ pub struct MenuBar {
     tray: TrayIcon,
     info: MenuItem<Wry>,
     home: PathBuf,
+    /// Free space is sampled into the history on each refresh.
+    history: PathBuf,
     settings: Mutex<MenuBarSettings>,
     /// Set to redraw on the next tick instead of waiting for the refresh interval.
     dirty: AtomicBool,
@@ -57,17 +60,11 @@ fn summary(disk: &DiskInfo) -> String {
     let (used, used_unit) = short(disk.used);
     let (total, total_unit) = short(disk.total);
     let (free, free_unit) = short(disk.available);
-    format!(
-        "{}: {} {used_unit} of {} {total_unit} used · {} {free_unit} free",
-        disk.name,
-        num(used),
-        num(total),
-        num(free)
-    )
+    format!("{}: {} {used_unit} of {} {total_unit} used · {} {free_unit} free", disk.name, num(used), num(total), num(free))
 }
 
 impl MenuBar {
-    pub fn create(app: &AppHandle, home: PathBuf, settings: MenuBarSettings) -> tauri::Result<Self> {
+    pub fn create(app: &AppHandle, home: PathBuf, history: PathBuf, settings: MenuBarSettings) -> tauri::Result<Self> {
         let info = MenuItem::with_id(app, "info", "Reading disk…", false, None::<&str>)?;
         let open = MenuItem::with_id(app, "open", "Open Kurz", true, None::<&str>)?;
         let configure = MenuItem::with_id(app, "settings", "Menu Bar Settings…", true, None::<&str>)?;
@@ -91,7 +88,7 @@ impl MenuBar {
             })
             .build(app)?;
 
-        Ok(Self { tray, info, home, settings: Mutex::new(settings), dirty: AtomicBool::new(true) })
+        Ok(Self { tray, info, home, history, settings: Mutex::new(settings), dirty: AtomicBool::new(true) })
     }
 
     pub fn settings(&self) -> MenuBarSettings {
@@ -106,9 +103,6 @@ impl MenuBar {
     fn refresh(&self) {
         let settings = self.settings();
         let _ = self.tray.set_visible(settings.enabled);
-        if !settings.enabled {
-            return;
-        }
         let disk = match disk::disk_info(&self.home) {
             Ok(disk) => disk,
             Err(e) => {
@@ -116,6 +110,11 @@ impl MenuBar {
                 return;
             }
         };
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64);
+        let _ = history::update(&self.history, |h| h.sample(now, disk.available, false));
+        if !settings.enabled {
+            return;
+        }
         let used_percent = disk.used as f64 / disk.total as f64 * 100.0;
         let level = Level::of(used_percent, settings.warn_at, settings.critical_at);
         let icon = Image::new_owned(gauge::render(used_percent / 100.0, level), gauge::SIZE, gauge::SIZE);
@@ -156,14 +155,7 @@ mod tests {
     use super::*;
 
     fn disk(used: u64, total: u64) -> DiskInfo {
-        DiskInfo {
-            name: "Macintosh HD".into(),
-            mount_point: "/".into(),
-            fs_type: "apfs".into(),
-            total,
-            available: total - used,
-            used,
-        }
+        DiskInfo { name: "Macintosh HD".into(), mount_point: "/".into(), fs_type: "apfs".into(), total, available: total - used, used }
     }
 
     #[test]

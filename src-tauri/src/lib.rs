@@ -174,6 +174,12 @@ fn start_scan(app: AppHandle, state: State<AppState>, path: String) -> Result<()
         let state = app.state::<AppState>();
         let (cancelled, error) = match outcome {
             Ok(Some(tree)) => {
+                let items = recommend::recommend(&tree, &root, now());
+                if let Ok(path) = history_path(&app) {
+                    let _ = history::update(&path, |h| {
+                        h.record_sizes(now(), items.iter().map(|i| (i.id.as_str(), i.label.as_str(), i.location.as_str(), i.size)))
+                    });
+                }
                 *state.result.lock().unwrap() = Some(ScanResult { root: root.clone(), tree });
                 (false, None)
             }
@@ -183,12 +189,7 @@ fn start_scan(app: AppHandle, state: State<AppState>, path: String) -> Result<()
         state.scanning.store(false, Ordering::SeqCst);
         let _ = app.emit(
             "scan-done",
-            DoneEvent {
-                root: root.to_string_lossy().into_owned(),
-                cancelled,
-                error,
-                progress: ProgressEvent::from(&progress, started),
-            },
+            DoneEvent { root: root.to_string_lossy().into_owned(), cancelled, error, progress: ProgressEvent::from(&progress, started) },
         );
     });
     Ok(())
@@ -295,10 +296,7 @@ fn how_it_works() -> HowItWorks {
             })
             .collect(),
         never: rules::NEVER.iter().map(|(path, what)| (format!("~/{path}"), *what)).collect(),
-        categories: categories::examples()
-            .into_iter()
-            .map(|(category, examples)| CategoryView { category, examples })
-            .collect(),
+        categories: categories::examples().into_iter().map(|(category, examples)| CategoryView { category, examples }).collect(),
         idle_days: rules::IDLE_DAYS,
         max_children: MAX_CHILDREN,
         min_share: MIN_SHARE,
@@ -354,8 +352,12 @@ struct CleanReport {
 /// Takes `path` out of the scanned tree, returning its size, and keeps it for a later restore.
 fn take_from_tree(state: &AppState, path: &Path) -> u64 {
     let mut guard = state.result.lock().unwrap();
-    let Some(result) = guard.as_mut() else { return 0 };
-    let Ok(relative) = path.strip_prefix(&result.root) else { return 0 };
+    let Some(result) = guard.as_mut() else {
+        return 0;
+    };
+    let Ok(relative) = path.strip_prefix(&result.root) else {
+        return 0;
+    };
     match result.tree.remove(relative) {
         Some(node) => {
             let size = node.size;
@@ -367,7 +369,9 @@ fn take_from_tree(state: &AppState, path: &Path) -> u64 {
 }
 
 fn put_back_in_tree(state: &AppState, path: &Path) {
-    let Some(node) = state.removed.lock().unwrap().remove(&*path.to_string_lossy()) else { return };
+    let Some(node) = state.removed.lock().unwrap().remove(&*path.to_string_lossy()) else {
+        return;
+    };
     let mut guard = state.result.lock().unwrap();
     if let Some(result) = guard.as_mut()
         && let Ok(relative) = path.strip_prefix(&result.root)
@@ -396,6 +400,7 @@ fn run_cleanup(app: &AppHandle, items: Vec<CleanRequest>, mode: cleanup::Mode) -
                     size += take_from_tree(&state, &p);
                     removed.push(history::Removed {
                         original: path,
+                        in_trash: trashed.is_some(),
                         trashed: trashed.map(|t| t.to_string_lossy().into_owned()),
                         restored: false,
                     });
@@ -416,10 +421,14 @@ fn run_cleanup(app: &AppHandle, items: Vec<CleanRequest>, mode: cleanup::Mode) -
         items: cleaned,
     });
     if let Some(c) = &cleanup {
-        let path = history_path(app)?;
-        let mut all = history::load(&path);
-        all.cleanups.push(c.clone());
-        history::save(&path, &all).map_err(|e| e.to_string())?;
+        let free = disk::disk_info(&home).map(|d| d.available).ok();
+        history::update(&history_path(app)?, |h| {
+            h.cleanups.push(c.clone());
+            if let Some(free) = free {
+                h.sample(now(), free, true);
+            }
+        })
+        .map_err(|e| e.to_string())?;
     }
     Ok(CleanReport { freed: cleanup.as_ref().map_or(0, |c| c.freed()), cleanup, failed })
 }
@@ -443,56 +452,65 @@ async fn clean_up(app: AppHandle, items: Vec<CleanRequest>, mode: cleanup::Mode)
 /// Moves trashed items of a cleanup back where they were: all of them, or just `paths`.
 #[tauri::command]
 fn restore_cleanup(app: AppHandle, state: State<AppState>, id: String, paths: Option<Vec<String>>) -> Result<Vec<Failure>, String> {
-    let path = history_path(&app)?;
-    let mut all = history::load(&path);
-    let cleanup = all.cleanups.iter_mut().find(|c| c.id == id).ok_or("That cleanup isn't in the history")?;
-    let mut failed = Vec::new();
-    for removed in cleanup.items.iter_mut().flat_map(|i| i.paths.iter_mut()) {
-        let wanted = paths.as_ref().is_none_or(|p| p.contains(&removed.original));
-        let Some(trashed) = removed.trashed.as_ref().filter(|_| wanted && !removed.restored) else { continue };
-        let original = PathBuf::from(&removed.original);
-        match cleanup::restore(Path::new(trashed), &original) {
-            Ok(()) => {
-                removed.restored = true;
-                put_back_in_tree(&state, &original);
+    history::update(&history_path(&app)?, |all| {
+        let cleanup = all.cleanups.iter_mut().find(|c| c.id == id).ok_or("That cleanup isn't in the history")?;
+        let mut failed = Vec::new();
+        for removed in cleanup.items.iter_mut().flat_map(|i| i.paths.iter_mut()) {
+            let wanted = paths.as_ref().is_none_or(|p| p.contains(&removed.original));
+            let Some(trashed) = removed.trashed.as_ref().filter(|_| wanted && !removed.restored) else {
+                continue;
+            };
+            let original = PathBuf::from(&removed.original);
+            match cleanup::restore(Path::new(trashed), &original) {
+                Ok(()) => {
+                    removed.restored = true;
+                    put_back_in_tree(&state, &original);
+                }
+                Err(e) => failed.push(Failure { path: removed.original.clone(), error: e.to_string() }),
             }
-            Err(e) => failed.push(Failure { path: removed.original.clone(), error: e.to_string() }),
         }
-    }
-    history::save(&path, &all).map_err(|e| e.to_string())?;
-    Ok(failed)
+        Ok(failed)
+    })
+    .map_err(|e| e.to_string())?
 }
 
 /// Deletes for good the items a cleanup moved to the Trash, freeing their space.
 /// Only those items: the rest of the Trash is left alone.
 #[tauri::command]
 fn purge_cleanup(app: AppHandle, id: String) -> Result<Vec<Failure>, String> {
-    let path = history_path(&app)?;
-    let mut all = history::load(&path);
-    let cleanup = all.cleanups.iter_mut().find(|c| c.id == id).ok_or("That cleanup isn't in the history")?;
     let trash = app.path().home_dir().map_err(|e| e.to_string())?.join(".Trash");
-    let mut failed = Vec::new();
-    for removed in cleanup.items.iter_mut().flat_map(|i| i.paths.iter_mut()) {
-        let Some(trashed) = removed.trashed.clone().filter(|_| !removed.restored) else { continue };
-        let trashed = PathBuf::from(trashed);
-        // Only ever delete inside the Trash.
-        if !trashed.starts_with(&trash) {
-            failed.push(Failure { path: removed.original.clone(), error: "Not in the Trash".into() });
-            continue;
+    history::update(&history_path(&app)?, |all| {
+        let cleanup = all.cleanups.iter_mut().find(|c| c.id == id).ok_or("That cleanup isn't in the history")?;
+        let mut failed = Vec::new();
+        for removed in cleanup.items.iter_mut().flat_map(|i| i.paths.iter_mut()) {
+            let Some(trashed) = removed.trashed.clone().filter(|_| !removed.restored) else {
+                continue;
+            };
+            let trashed = PathBuf::from(trashed);
+            // Only ever delete inside the Trash.
+            if !trashed.starts_with(&trash) {
+                failed.push(Failure { path: removed.original.clone(), error: "Not in the Trash".into() });
+                continue;
+            }
+            match cleanup::delete(&trashed) {
+                Ok(()) => removed.trashed = None,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => removed.trashed = None,
+                Err(e) => failed.push(Failure { path: removed.original.clone(), error: e.to_string() }),
+            }
         }
-        match cleanup::delete(&trashed) {
-            Ok(()) => removed.trashed = None,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => removed.trashed = None,
-            Err(e) => failed.push(Failure { path: removed.original.clone(), error: e.to_string() }),
-        }
-    }
-    history::save(&path, &all).map_err(|e| e.to_string())?;
-    Ok(failed)
+        Ok(failed)
+    })
+    .map_err(|e| e.to_string())?
 }
 
+/// The history, with each trashed item checked for whether it's still in the Trash.
 #[tauri::command]
 fn get_history(app: AppHandle) -> Result<history::History, String> {
-    Ok(history::load(&history_path(&app)?))
+    let mut all = history::load(&history_path(&app)?);
+    for removed in all.cleanups.iter_mut().flat_map(|c| c.items.iter_mut()).flat_map(|i| i.paths.iter_mut()) {
+        removed.in_trash = !removed.restored && removed.trashed.as_ref().is_some_and(|t| std::fs::symlink_metadata(t).is_ok());
+    }
+    Ok(all)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -504,7 +522,7 @@ pub fn run() {
             let handle = app.handle();
             let settings = settings::load(&settings_path(handle)?);
             let home = app.path().home_dir()?;
-            app.manage(MenuBar::create(handle, home, settings.menu_bar)?);
+            app.manage(MenuBar::create(handle, home, history_path(handle)?, settings.menu_bar)?);
             MenuBar::spawn_refresher(handle.clone());
             Ok(())
         })

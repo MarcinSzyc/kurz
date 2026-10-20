@@ -37,7 +37,9 @@ impl Matcher {
         match self {
             Matcher::Path(path) => format!("~/{path}"),
             Matcher::NameNextTo(name, files) => format!("{name} next to {}", files.join(" or ")),
-            Matcher::OldFilesIn(dir, days) => format!("Files in ~/{dir} unchanged for {days}+ days"),
+            Matcher::OldFilesIn(dir, days) => {
+                format!("Files in ~/{dir} unchanged for {days}+ days")
+            }
             Matcher::EachChildOf(dir) => format!("Each folder in ~/{dir}"),
             Matcher::IdleRepository(days) => format!("Git repositories unchanged for {days}+ days"),
         }

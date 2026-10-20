@@ -39,14 +39,7 @@ pub fn disk_info(path: &Path) -> io::Result<DiskInfo> {
     let mount_point = unsafe { CStr::from_ptr(stat.f_mntonname.as_ptr()) }.to_string_lossy().into_owned();
     let fs_type = unsafe { CStr::from_ptr(stat.f_fstypename.as_ptr()) }.to_string_lossy().into_owned();
 
-    Ok(DiskInfo {
-        name: volume_name(&mount_point),
-        mount_point,
-        fs_type,
-        total,
-        available,
-        used: total.saturating_sub(available),
-    })
+    Ok(DiskInfo { name: volume_name(&mount_point), mount_point, fs_type, total, available, used: total.saturating_sub(available) })
 }
 
 /// Finder's name for a mount point: the entry in /Volumes that points at it.

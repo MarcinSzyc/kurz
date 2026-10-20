@@ -109,6 +109,7 @@ export interface Removed {
   original: string;
   trashed: string | null;
   restored: boolean;
+  inTrash: boolean;
 }
 
 export interface Cleanup {
@@ -129,7 +130,13 @@ export const cleanUp = (items: { label: string; paths: string[] }[], mode: Clean
   invoke<CleanReport>("clean_up", { items, mode });
 export const restoreCleanup = (id: string, paths?: string[]) =>
   invoke<{ path: string; error: string }[]>("restore_cleanup", { id, paths: paths ?? null });
-export const getHistory = () => invoke<{ cleanups: Cleanup[] }>("get_history");
+export interface HistoryData {
+  cleanups: Cleanup[];
+  samples: { at: number; free: number }[];
+  growth: Record<string, { label: string; location: string; sizes: [number, number][] }>;
+}
+
+export const getHistory = () => invoke<HistoryData>("get_history");
 export const onCleanupProgress = (cb: (p: { done: number; total: number; current: string }) => void): Promise<UnlistenFn> =>
   listen<{ done: number; total: number; current: string }>("cleanup-progress", (e) => cb(e.payload));
 export const purgeCleanup = (id: string) => invoke<{ path: string; error: string }[]>("purge_cleanup", { id });
