@@ -1,4 +1,4 @@
-import type { Recommendation, Risk } from "./api";
+import type { Category, Recommendation, Risk, TreeNode } from "./api";
 
 export const GB = 1e9;
 
@@ -60,3 +60,65 @@ export function ago(unixSeconds: number, now = Date.now() / 1000): string {
   if (d < 365) return `${Math.round(d / 30)} mo ago`;
   return `${(d / 365).toFixed(1)} yr ago`;
 }
+
+/** Anything in the cleanup tray: a recommendation from Clean up, or a folder picked on the Map. */
+export interface TrayEntry {
+  key: string;
+  label: string;
+  /** Where it is, for display. */
+  location: string;
+  paths: string[];
+  size: number;
+  risk: Risk;
+  category: Category;
+}
+
+export const fromRecommendation = (r: Recommendation): TrayEntry => ({
+  key: r.id,
+  label: r.label,
+  location: r.location,
+  paths: r.paths,
+  size: r.size,
+  risk: r.risk,
+  category: r.category,
+});
+
+const tilde = (path: string, home: string) => (path.startsWith(home) ? "~" + path.slice(home.length) : path);
+
+/**
+ * How risky removing a folder picked on the map is. Recommendations know best: a folder inside one
+ * takes its risk, and a folder that is mostly recommended items takes the most cautious of theirs.
+ */
+export function riskOfFolder(node: TreeNode, items: Recommendation[]): Risk {
+  const inside = (path: string, dir: string) => path === dir || path.startsWith(dir + "/");
+  const holder = items.find((i) => i.paths.some((p) => inside(node.path, p)));
+  if (holder) return holder.risk;
+  const within = items.filter((i) => i.paths.every((p) => inside(p, node.path)));
+  if (within.length && sizeOf(within) >= node.size / 2) {
+    return within.reduce<Risk>((worst, i) => (RISKS.findIndex((r) => r.id === i.risk) > RISKS.findIndex((r) => r.id === worst) ? i.risk : worst), "safe");
+  }
+  if (node.name === "node_modules" || node.name === ".next") return "rebuildable";
+  switch (node.category) {
+    case "cache":
+      return "safe";
+    case "sdk":
+    case "devTools":
+    case "aiModels":
+      return "rebuildable";
+    default:
+      return "takeALook";
+  }
+}
+
+export const fromFolder = (node: TreeNode, home: string, items: Recommendation[]): TrayEntry => ({
+  key: "path:" + node.path,
+  label: node.name,
+  location: tilde(node.path.slice(0, node.path.length - node.name.length - 1), home) || "~",
+  paths: [node.path],
+  size: node.size,
+  risk: riskOfFolder(node, items),
+  category: node.category,
+});
+
+/** True when `path` is one of the entry's paths or inside one. */
+export const covers = (entry: TrayEntry, path: string) => entry.paths.some((p) => path === p || path.startsWith(p + "/"));

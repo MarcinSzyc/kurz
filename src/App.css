@@ -44,6 +44,12 @@
   --chip-c: 0.06;
   --rest: #e3e0d9;
   --rest-2: #f1efea;
+  --dim-l: 0.78;
+  --grp-l: 0.955;
+  --grp-c: 0.016;
+  --grp-fg-l: 0.32;
+  --grp-sub-l: 0.52;
+  --calm-fg-l: 0.3;
 
   font-family: Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px;
@@ -93,6 +99,12 @@
     --chip-c: 0.06;
     --rest: #2e2e2b;
     --rest-2: #252523;
+    --dim-l: 0.6;
+    --grp-l: 0.225;
+    --grp-c: 0.014;
+    --grp-fg-l: 0.88;
+    --grp-sub-l: 0.62;
+    --calm-fg-l: 0.22;
   }
 }
 
@@ -1555,4 +1567,279 @@ button.link.strong {
 .confirm-actions button {
   padding: 9px 16px;
   border-radius: 8px;
+}
+
+/* ───── Map ───── */
+
+.mapview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+}
+
+.map-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 14px 16px 16px;
+}
+
+.map-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.crumbs.plain {
+  padding: 0;
+  border: none;
+  font-size: 13.5px;
+}
+
+.crumbs.plain .link.muted {
+  color: var(--muted);
+}
+
+.crumbs .sep {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.level-size {
+  margin-left: 6px;
+  font-size: 12px;
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.switch input {
+  display: none;
+}
+
+.switch i {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--track);
+  transition: background 0.15s;
+}
+
+.switch i::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+  transition: left 0.15s;
+}
+
+.switch input:checked + i {
+  background: var(--accent);
+}
+
+.switch input:checked + i::after {
+  left: 16px;
+}
+
+.calm-map {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: -4px;
+}
+
+.calm-group {
+  position: absolute;
+  border-radius: 12px;
+  background: oklch(var(--grp-l) calc(var(--grp-c) * var(--k, 0.15)) var(--h, 80));
+}
+
+.calm-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: oklch(var(--grp-fg-l) 0.035 var(--h, 80));
+}
+
+.calm-group-head span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calm-group-head .mono {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: oklch(var(--grp-sub-l) 0.03 var(--h, 80));
+}
+
+.calm-group-head:hover {
+  opacity: 0.7;
+}
+
+.calm-tile {
+  --fill: oklch(var(--tile-l) calc(var(--tile-c) * var(--k, 0.15)) var(--h, 80));
+  position: absolute;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--fill);
+  color: oklch(var(--calm-fg-l) calc(0.045 * var(--k, 0.15)) var(--h, 80));
+  cursor: pointer;
+  transition: opacity 0.18s, filter 0.15s;
+}
+
+.calm-tile:hover {
+  filter: brightness(0.97);
+}
+
+.calm-tile.picked {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--fill) 0 6px,
+    oklch(var(--dim-l) calc(0.055 * var(--k, 0.15)) var(--h, 80)) 6px 12px
+  );
+}
+
+.calm-tile.dim {
+  opacity: 0.25;
+}
+
+.calm-tile.more {
+  cursor: default;
+  color: var(--muted);
+  background: repeating-linear-gradient(135deg, var(--rest) 0 4px, var(--rest-2) 4px 8px);
+}
+
+.calm-name {
+  position: absolute;
+  left: 10px;
+  top: 8px;
+  right: 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calm-size {
+  position: absolute;
+  left: 10px;
+  bottom: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.calm-size.big {
+  font-size: 20px;
+}
+
+.calm-badge {
+  position: absolute;
+  right: 7px;
+  top: 7px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #22211f;
+  color: #f5f3ef;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.calm-dot {
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #22211f;
+}
+
+.calm-open {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.06);
+  color: inherit;
+  font-size: 15px;
+  line-height: 24px;
+}
+
+.calm-open:hover {
+  background: rgb(0 0 0 / 0.14);
+}
+
+.legend.plain {
+  padding: 0;
+  border: none;
+}
+
+.tray-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tray-name span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tray-name .mono {
+  font-size: 10.5px;
+}
+
+.tray-disk {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: oklch(0.86 0.07 160);
+}
+
+.tray-disk span {
+  background: var(--used);
+}
+
+.tray-disk i {
+  background: repeating-linear-gradient(135deg, oklch(0.78 0.08 160) 0 3px, var(--rest) 3px 6px);
+}
+
+.mapview .tray {
+  align-self: stretch;
+}
+
+.mapview .tray .tray-list {
+  flex: 1;
+  max-height: none;
 }

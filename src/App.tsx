@@ -24,16 +24,17 @@ import {
   type TreeNode,
 } from "./lib/api";
 import { formatBytes, formatCount, formatDuration } from "./lib/format";
-import { GB, sizeOf } from "./lib/tray";
+import { GB, autoPick, covers, fromFolder, fromRecommendation, sizeOf, type TrayEntry } from "./lib/tray";
 import { CleanUp } from "./components/CleanUp";
-import { Explorer, type ExplorerView } from "./components/Explorer";
+import { MapView } from "./components/MapView";
+import { Tray } from "./components/Tray";
 import { MenuBarSettingsPanel } from "./components/MenuBarSettings";
 import { HowItWorks } from "./components/HowItWorks";
 import "./fonts.css";
 import "./App.css";
 
-/** Levels sent to the map: a folder, its children and grandchildren as tiles inside. */
-const MAP_DEPTH = 3;
+/** Levels sent to the map: a folder's children, and their children shown inside the big ones. */
+const MAP_DEPTH = 2;
 /** Below this share of the disk free, the free space shows as low. */
 const LOW_FREE = 0.1;
 
@@ -53,7 +54,6 @@ function App() {
   const [progress, setProgress] = useState<ScanProgress | null>(null);
   const [done, setDone] = useState<ScanDone | null>(null);
   const [node, setNode] = useState<TreeNode | null>(null);
-  const [view, setView] = useState<ExplorerView>("map");
   const [error, setError] = useState<string | null>(null);
   const [menuBar, setMenuBar] = useState<MenuBarSettings | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -62,6 +62,8 @@ function App() {
   const [items, setItems] = useState<Recommendation[]>([]);
   const [goal, setGoal] = useState(0);
   const [selection, setSelection] = useState<string[] | null>(null);
+  /** Folders added from the Map, sharing the tray with the recommendations. */
+  const [folders, setFolders] = useState<TrayEntry[]>([]);
   const [cleaning, setCleaning] = useState<{ done: number; total: number } | null>(null);
   const [report, setReport] = useState<CleanReport | null>(null);
   const goalSet = useRef(false);
@@ -127,7 +129,7 @@ function App() {
     }
   }
 
-  async function clean(chosen: Recommendation[], mode: CleanMode) {
+  async function clean(chosen: TrayEntry[], mode: CleanMode) {
     setCleaning({ done: 0, total: chosen.reduce((n, i) => n + i.paths.length, 0) });
     try {
       const result = await cleanUp(
@@ -136,6 +138,7 @@ function App() {
       );
       setReport(result);
       setSelection([]);
+      setFolders([]);
       await refreshRecommendations();
       if (home) refreshDisk(home);
       if (node) open(node.path);
@@ -175,6 +178,58 @@ function App() {
     });
     if (home) refreshDisk(home);
   }
+
+  // The tray: recommendations picked by the goal or by hand, plus folders from the Map.
+  // A recommendation inside a picked folder is left out so nothing counts twice.
+  const selected = selection ?? autoPick(items, goal * GB);
+  const recEntries = items
+    .filter((i) => selected.includes(i.id))
+    .map(fromRecommendation)
+    .filter((e) => !e.paths.every((p) => folders.some((f) => covers(f, p))));
+  const tray = [...recEntries, ...folders];
+  const maxGb = Math.max(1, Math.ceil(sizeOf(items) / GB));
+
+  const toggleRec = (id: string) => setSelection(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+  const setMany = (ids: string[], on: boolean) =>
+    setSelection(on ? [...new Set([...selected, ...ids])] : selected.filter((x) => !ids.includes(x)));
+
+  function removeEntry(key: string) {
+    if (folders.some((f) => f.key === key)) setFolders(folders.filter((f) => f.key !== key));
+    else setSelection(selected.filter((x) => x !== key));
+  }
+
+  function toggleFolder(n: TreeNode) {
+    const holder = tray.find((e) => covers(e, n.path));
+    if (holder) return removeEntry(holder.key);
+    if (!home) return;
+    const entry = fromFolder(n, home, items);
+    // The new folder replaces whatever of the tray it contains.
+    setFolders([...folders.filter((f) => !covers(entry, f.paths[0])), entry]);
+    setSelection(selected.filter((id) => !items.find((i) => i.id === id)?.paths.every((p) => covers(entry, p))));
+  }
+
+  const trayPanel = (onClean: boolean) => (
+    <Tray
+      entries={tray}
+      goal={onClean ? { gb: goal, maxGb } : undefined}
+      disk={disk}
+      cleaning={cleaning}
+      report={report}
+      emptyHint={onClean ? "Drag the goal slider or click Add on any item." : "Click a tile to add that folder."}
+      onRemove={removeEntry}
+      onClear={() => {
+        setSelection([]);
+        setFolders([]);
+      }}
+      onClean={clean}
+      onUndo={undo}
+      onPurge={purge}
+      onDismiss={() => {
+        setReport(null);
+        setSelection(null);
+      }}
+    />
+  );
 
   const scanned = status === "done" || (status === "scanning" && done !== null);
   const lowFree = disk ? disk.available / disk.total < LOW_FREE : false;
@@ -238,26 +293,19 @@ function App() {
       ) : page === "cleanup" ? (
         <CleanUp
           items={items}
-          disk={disk}
-          selection={selection}
+          selected={selected}
           goal={goal}
+          maxGb={maxGb}
           onGoal={(g) => {
             setGoal(g);
             setSelection(null);
           }}
-          onSelection={setSelection}
-          onClean={clean}
-          cleaning={cleaning}
-          lastReport={report}
-          onUndo={undo}
-          onPurge={purge}
-          onDismissReport={() => {
-            setReport(null);
-            setSelection(null);
-          }}
+          onToggle={toggleRec}
+          onSetMany={setMany}
+          tray={trayPanel(true)}
         />
       ) : page === "map" && node && done ? (
-        <Explorer node={node} root={done.root} view={view} onViewChange={setView} onOpen={open} />
+        <MapView node={node} root={done.root} items={items} tray={tray} onOpen={open} onToggleFolder={toggleFolder} trayPanel={trayPanel(false)} />
       ) : (
         <section className="card empty-state">
           <h2>History</h2>

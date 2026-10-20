@@ -17,16 +17,13 @@ Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folder
 | Funkcja | Status |
 |---|---|
 | Szybki, równoległy skan folderu z postępem na żywo i możliwością anulowania | ✅ gotowe |
-| Lista największych pozycji z nawigacją w głąb folderów | ✅ gotowe |
-| Informacje o dysku i skanie: pojemność, zajęte i wolne miejsce, rozmiar folderu domowego, liczba plików, czas | ✅ gotowe |
-| Mapa kafelkowa (treemap): wielkość kafelka odpowiada zajmowanemu miejscu, kliknięcie wchodzi do folderu, przełącznik mapa/lista | ✅ gotowe |
-| Kolorowanie według kategorii z legendą: dokumenty, kod (repozytoria git), narzędzia deweloperskie, SDK, modele AI, cache, Library | ✅ gotowe |
+| Pasek dysku w nagłówku: wolne miejsce i zajętość | ✅ gotowe |
 | Wskaźnik w pasku menu macOS: pierścień zajętości dysku, konfigurowalny tekst, kolor pomarańczowy/czerwony po przekroczeniu progów | ✅ gotowe |
 | Ekran „How it works”: jak działa skan, kategorie, reguły rekomendacji i usuwania, generowany z tych samych reguł, których używa apka | ✅ gotowe |
 | Ekran **Clean up**: cel „I need X GB” sam napełnia koszyk najbezpieczniejszymi pozycjami; trzy grupy: *Safe to delete*, *Rebuildable*, *Take a look*; data ostatniej zmiany każdej pozycji | ✅ gotowe |
 | Czyszczenie z wyborem przy każdym usunięciu: do Kosza albo na stałe; Undo; „Empty from Trash” usuwa tylko pozycje z tego sprzątania | ✅ gotowe |
-| Nowa mapa według designu, wspólny koszyk z Clean up | 📋 następne |
-| Zakładka **History**: wolne miejsce w czasie, przywracanie poprzednich sprzątań, foldery, które odrastają | 📋 planowane |
+| Ekran **Map**: spokojna mapa kafelkowa z dwoma poziomami, kolory według kategorii, kliknięcie kafelka dodaje folder do koszyka wspólnego z Clean up, › wchodzi do folderu, „Only removable” przygasza foldery z Twoimi plikami | ✅ gotowe |
+| Zakładka **History**: wolne miejsce w czasie, przywracanie poprzednich sprzątań, foldery, które odrastają | 📋 następne |
 | Gotowy skrypt shell zamiast usuwania z apki | 📋 planowane |
 
 ### Zasady bezpieczeństwa
@@ -146,7 +143,7 @@ Przy pierwszym skanie macOS zapyta o dostęp do Biurka, Dokumentów i Pobranych.
 kurz/
 ├── src/                    # interfejs (React + TypeScript)
 │   ├── App.tsx
-│   ├── components/         # CleanUp, Explorer, Treemap, MenuBarSettings, HowItWorks
+│   ├── components/         # CleanUp, MapView, Tray, MenuBarSettings, HowItWorks
 │   └── lib/                # wywołania Rusta, formatowanie
 ├── src-tauri/              # rdzeń (Rust)
 │   ├── src/scanner.rs      # równoległy skaner + testy
