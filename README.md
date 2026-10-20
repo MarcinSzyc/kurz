@@ -122,6 +122,16 @@ For example, scanning `~/Prywatne` (9.5 GB, 188k files) takes 2.3 s in a release
   ```
 - About 12 GB of free disk space for the build (see [Size](#size)).
 
+### Quick install
+
+```bash
+git clone https://github.com/MarcinSzyc/kurz.git
+cd kurz
+./scripts/install.sh
+```
+
+The script ([`scripts/install.sh`](scripts/install.sh), also `pnpm install:app`) installs dependencies, builds `Kurz.app`, signs it ad-hoc, quits a running Kurz, copies it into `/Applications` and opens it. Pass `--no-open` to skip opening it. To update later, pull and run it again. The steps below are what it does, if you'd rather do them by hand.
+
 ### 1. Get the code and dependencies
 
 ```bash
@@ -174,7 +184,7 @@ open /Applications/Kurz.app
 
 ### Updating
 
-Pull the new code and repeat steps 2–4: build, sign, quit the running Kurz, copy, open. Each local build gets a new ad-hoc signature, so macOS may ask again for access to your folders, and Full Disk Access may need to be granted again (see [macOS permissions](#macos-permissions)).
+Pull the new code and run `./scripts/install.sh` again, or repeat steps 2–4 by hand: build, sign, quit the running Kurz, copy, open. Each local build gets a new ad-hoc signature, so macOS may ask again for access to your folders, and Full Disk Access may need to be granted again (see [macOS permissions](#macos-permissions)).
 
 ### Uninstalling
 
@@ -289,6 +299,7 @@ kurz/
 │   ├── src/lib.rs          # Tauri commands and events
 │   ├── examples/scan.rs    # command-line benchmark
 │   └── tauri.conf.json     # window and bundle configuration
+├── scripts/install.sh      # build, sign and install Kurz.app
 └── design/                 # target designs (HTML mockups) and the icon
 ```
 
