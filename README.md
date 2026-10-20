@@ -1,181 +1,296 @@
 <p align="center">
-  <img src="design/icon.png" width="180" alt="Ikona Kurz: puchata kulka kurzu z dużymi oczami">
+  <img src="design/icon.png" width="180" alt="Kurz icon: a fluffy dust bunny with big eyes">
 </p>
 
 <h1 align="center">Kurz</h1>
 
 <p align="center">
-  Aplikacja na macOS, która pokazuje, co zajmuje miejsce na dysku, i pomaga je bezpiecznie odzyskać.
+  A macOS app that shows what's taking up space on your disk and helps you get it back, safely.
+</p>
+
+<p align="center">
+  <i>Kurz</i> is Polish for <i>dust</i>.
 </p>
 
 ---
 
-## Co robi
+## What it does
 
-Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folderów, a potem podpowiada, co można bezpiecznie usunąć, i pokazuje mapę, na której od razu widać, gdzie „zbiera się kurz”. Docelowy wygląd jest w [`design/`](design/).
+Kurz scans your home folder, builds a size tree of every file and folder, suggests what's safe to remove, and shows a map where you can see at a glance where the dust gathers. The target design lives in [`design/`](design/).
 
-| Funkcja | Status |
+| Feature | Status |
 |---|---|
-| Szybki, równoległy skan folderu z postępem na żywo i możliwością anulowania | ✅ gotowe |
-| Pasek dysku w nagłówku: wolne miejsce i zajętość | ✅ gotowe |
-| Jasny i ciemny motyw: domyślnie jak w macOS; przełącznik słońce/księżyc w nagłówku, Light / Dark / Auto w menu ••• | ✅ gotowe |
-| Wskaźnik w pasku menu macOS: cztery style ikony (Bar, Tank, Slabs, Sprite), konfigurowalny tekst, kolor bursztynowy/koralowy po przekroczeniu progów (domyślnie 80% i 95%) | ✅ gotowe |
-| Okno „How it works” (z menu •••): jak działa skan, kategorie, reguły rekomendacji, miejsca chronione i usuwanie, generowane z tych samych reguł, których używa apka | ✅ gotowe |
-| Ekran **Clean up**: cel „I need X GB” sam napełnia koszyk najbezpieczniejszymi pozycjami; trzy grupy: *Safe to delete*, *Rebuildable*, *Take a look*; data ostatniej zmiany każdej pozycji | ✅ gotowe |
-| „Czym to jest?” pod nazwą każdej pozycji: aplikacja-właściciel rozpoznana lokalnie przez macOS (nazwa, czy jest zainstalowana, czy działa), opisy znanych folderów (np. pliki aktualizacji `*.ShipIt`, cache TypeScript); ostrzeżenie „Quit … first” i „App not installed” | ✅ gotowe |
-| Czyszczenie z wyborem przy każdym usunięciu: do Kosza albo na stałe; Undo; „Empty from Trash” usuwa tylko pozycje z tego sprzątania | ✅ gotowe |
-| Ekran **Map**: spokojna mapa kafelkowa z dwoma poziomami, kolory według kategorii, kliknięcie kafelka dodaje folder do koszyka wspólnego z Clean up, › wchodzi do folderu, „Only removable” przygasza foldery z Twoimi plikami | ✅ gotowe |
-| Zakładka **History**: odzyskane miejsce, tempo zapełniania dysku, wykres wolnego miejsca (30/90 dni) z zaznaczonymi sprzątaniami, poprzednie sprzątania z przywracaniem pojedynczych pozycji z Kosza, foldery, które odrastają | ✅ gotowe |
-| Automatyczne cotygodniowe sprzątanie folderów, które odrastają | 📋 planowane |
-| Gotowy skrypt shell zamiast usuwania z apki | 📋 planowane |
+| Fast, parallel scan of the home folder with live progress and cancel | ✅ done |
+| Header disk bar: free space and usage | ✅ done |
+| Light and dark themes: follows macOS by default; sun/moon toggle in the header, Light / Dark / Auto in the ••• menu | ✅ done |
+| **Clean up** screen: an "I need X GB" goal fills the tray with the safest items first; three groups: *Safe to delete*, *Rebuildable*, *Take a look*; when each item last changed | ✅ done |
+| "What is this?" under each item: the owning app, found locally through macOS (its name, whether it's installed and running), notes for opaque folders (e.g. `*.ShipIt` update files, the TypeScript cache); "Quit … first" and "App not installed" tags | ✅ done |
+| Cleaning that asks every time: to the Trash or permanently; Undo; "Empty from Trash" deletes only that cleanup's items | ✅ done |
+| **Map** screen: a calm two-level treemap colored by category; clicking a tile adds the folder to the tray shared with Clean up; › opens a folder; "Only removable" dims folders that may hold your own files | ✅ done |
+| **History** screen: space reclaimed, how fast the disk fills, a 30/90-day free space chart with cleanups marked, past cleanups with per-item restore from the Trash, folders that keep growing back | ✅ done |
+| macOS menu bar gauge: four icon styles (Bar, Tank, Slabs, Sprite), configurable text, amber and coral past thresholds (80% and 95% by default) | ✅ done |
+| **How it works** (from the ••• menu): scanning, categories, recommendation rules, protected places and removal, rendered from the same rules the app uses | ✅ done |
+| Full Disk Access onboarding | 📋 planned |
+| Weekly auto-clean of folders that keep growing back | 📋 planned |
+| A ready-made shell script instead of removing from the app | 📋 planned |
+| Preferences, Check for updates (greyed out in the ••• menu) | 📋 planned |
 
-### Zasady bezpieczeństwa
+### Safety rules
 
-- **Przy każdym usuwaniu wybierasz sposób:** przeniesienie do Kosza (domyślnie, można przywrócić przez „Odłóż z powrotem”) albo trwałe usunięcie (miejsce zwalnia się od razu, nie da się cofnąć).
-- Nic nie dzieje się bez zaznaczenia przez Ciebie. Rekomendacje to tylko podpowiedzi.
-- Skan tylko czyta i niczego na dysku nie zmienia.
-- Niektórych miejsc Kurz nigdy nie rusza: Dokumenty, Biurko, Zdjęcia, iCloud Drive, Poczta, Wiadomości, pęki kluczy, `~/.ssh`, `~/.gnupg`.
+- **Every removal asks how:** move to the Trash (the default; Undo puts it back) or delete permanently (frees the space right away and can't be undone).
+- Nothing happens until you choose it. Recommendations are only suggestions.
+- Scanning only reads; it never changes anything on disk.
+- Some places Kurz never touches: Documents, Desktop, Pictures, Movies, Music, iCloud Drive, Mail, Messages, Keychains, `~/.ssh`, `~/.gnupg`.
+- Nothing leaves your Mac. Kurz makes no network requests.
 
-## Jak to działa
+## How it works
 
 ```
-┌──────────────────────────── Kurz.app ─────────────────────────────┐
-│                                                                   │
-│  Interfejs (React + TypeScript, w webview systemu)                │
-│    • kafelki z informacjami, mapa, lista (rekomendacje: wkrótce)  │
-│    • układ mapy liczony przez d3-hierarchy (squarified treemap)   │
-│                 ▲ zdarzenia: postęp, koniec skanu                 │
-│                 │ polecenia: start_scan, get_tree, disk_info      │
-│  Rdzeń (Rust)   ▼                                                 │
-│    • scanner.rs: równoległe przejście po katalogach (rayon)       │
-│    • disk.rs: pojemność wolumenu (statfs)                         │
-│    • categories.rs: kategorie folderów (kolory mapy)              │
-│    • menubar.rs + gauge.rs: wskaźnik w pasku menu                 │
-│    • settings.rs: ustawienia w pliku JSON                         │
-│    • rules.rs: reguły rekomendacji, miejsca chronione             │
-│    • drzewo rozmiarów trzymane w pamięci                          │
-└───────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────── Kurz.app ────────────────────────────────┐
+│                                                                         │
+│  UI (React + TypeScript, in the system WebKit view)                     │
+│    • Clean up, Map, History, the tray, the How it works and Menu bar    │
+│      modals; treemap layout by d3-hierarchy                             │
+│                 ▲ events: scan-progress, scan-done, cleanup-progress    │
+│                 │ commands: start_scan, get_tree, get_recommendations,  │
+│                 │           clean_up, restore_cleanup, get_history, …   │
+│  Core (Rust)    ▼                                                       │
+│    • scanner.rs     parallel directory walk (rayon), size tree in RAM   │
+│    • rules.rs       cleanup rules and protected places                  │
+│    • recommend.rs   matches the rules against the tree                  │
+│    • about.rs       which app owns a folder, notes for opaque ones      │
+│    • cleanup.rs     re-checks paths, moves to the Trash, deletes        │
+│    • history.rs     cleanups, free space samples, sizes over time       │
+│    • categories.rs  folder categories (map colors)                      │
+│    • menubar.rs, gauge.rs  the menu bar item and its icon              │
+│    • disk.rs, settings.rs  volume capacity, settings                    │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-1. **Skan.** Rust przechodzi po katalogach równolegle na wszystkich rdzeniach procesora. Każdy podfolder to osobne zadanie dla puli wątków rayon. Co 150 ms do interfejsu trafia zdarzenie z postępem: liczba plików, folderów, bajtów i błędów.
-2. **Liczenie rozmiaru.** Kurz liczy miejsce faktycznie zajęte na dysku (`st_blocks × 512`), tak jak `du`, a nie rozmiar „logiczny”. Dzięki temu pliki rzadkie i skompresowane nie zawyżają wyniku.
-3. **Pułapki, które skaner omija:**
-   - nie wchodzi w dowiązania symboliczne, więc niczego nie liczy dwa razy i nie wpada w pętle;
-   - pomija inne woluminy zamontowane wewnątrz skanowanego folderu;
-   - plik z kilkoma twardymi dowiązaniami liczy tylko raz;
-   - folder bez uprawnień zalicza jako „nieczytelny” i skanuje dalej.
-4. **Drzewo w pamięci.** Wynik skanu to drzewo w pamięci procesu Rust. Interfejs pobiera tylko fragment, który akurat pokazuje (`get_tree(path, depth)`). Pozycje zbyt małe, by były widoczne, są łączone w jedną, więc nawet przy milionach plików do interfejsu trafia niewiele danych.
+1. **Scan.** Rust walks the folders in parallel on every CPU core; each subfolder is a task for the rayon thread pool. Every 150 ms the UI gets a progress event: files, folders, bytes and errors so far.
+2. **Sizes.** Kurz counts the space files actually take on disk (`st_blocks × 512`), the same number `du` reports, not their "logical" size, so sparse and compressed files aren't overcounted.
+3. **Traps the scanner avoids:**
+   - it never follows symlinks, so nothing is counted twice and there are no loops;
+   - it skips other volumes mounted inside the scanned folder;
+   - a file with several hard links counts once;
+   - a folder it can't read is counted as unreadable and the scan goes on.
+4. **The tree in memory.** The scan result is a tree in the Rust process. The UI fetches only the part it shows (`get_tree(path, depth)`); entries too small to see are merged into one, so even with millions of files little data crosses to the UI.
+5. **Recommendations.** The rules in [`rules.rs`](src-tauri/src/rules.rs) describe what Kurz may suggest: a path, or a folder name with a condition (e.g. `node_modules` next to `package.json`, only in projects unchanged for 30 days), a risk level (*Safe*, *Rebuildable* or *Take a look*), why, and how to get it back. The protected places live in the same file, and tests make sure no rule reaches into them. Matching runs on the tree in memory, in milliseconds; once a folder matches, nothing inside it is matched again.
+6. **What is this?** For app caches, [`about.rs`](src-tauri/src/about.rs) asks macOS (LaunchServices) which app has that bundle id, wherever it's installed, and whether it's running. Nothing is looked up online.
+7. **Removal.** Right before removing, each path is checked again: it still exists, it's inside your home folder even after resolving symlinks, and it isn't in a protected place. The Trash is handled by the system `NSFileManager`; Kurz remembers where each item landed in the Trash, so Undo and History can put it back.
 
-5. **Usuwanie.** Tuż przed usunięciem każda ścieżka jest sprawdzana ponownie: czy istnieje, czy leży w folderze domowym (także po rozwinięciu dowiązań) i czy nie jest w miejscu chronionym. Kosz obsługuje systemowe `NSFileManager`. Kurz zapamiętuje, gdzie w Koszu trafiła każda pozycja, więc Undo odkłada ją na miejsce, a historia sprzątań trafia do `history.json` obok ustawień.
-6. **Rekomendacje.** Reguły w [`rules.rs`](src-tauri/src/rules.rs) opisują, co Kurz może zaproponować do usunięcia: ścieżkę albo nazwę folderu z warunkiem (np. `node_modules` obok `package.json`, tylko w projektach nieruszanych od 30 dni), poziom ryzyka (*Safe* albo *Review*), powód i sposób przywrócenia. Lista miejsc chronionych jest w tym samym pliku, a testy pilnują, żeby żadna reguła do nich nie sięgała. Pełny opis jest w apce, w zakładce **How it works**, generowanej prosto z tych reguł.
+**No database, and none needed.** A tree of ~3 million files fits in a few hundred MB of RAM and is rebuilt on every scan. The only files Kurz writes are two small JSON files in `~/Library/Application Support/com.marcinszyc.kurz/`: `settings.json` and `history.json` (cleanups, free space sampled at most hourly, recommendation sizes once a day; data older than 120 days is dropped).
 
-**Bazy danych nie ma i nie jest potrzebna.** Drzewo z ~3 mln plików mieści się w kilkuset MB RAM i powstaje od nowa przy każdym skanie. Na dysk trafiają tylko dwa małe pliki JSON w `~/Library/Application Support/com.marcinszyc.kurz/`: `settings.json` (ustawienia) i `history.json` (sprzątania, próbki wolnego miejsca najwyżej co godzinę, rozmiary rekomendowanych pozycji raz dziennie; dane starsze niż 120 dni są usuwane).
+## Why these technologies
 
-## Dlaczego takie technologie
+**Rust: the core and the scanner.** Scanning a disk means millions of system calls and a lot of CPU work. Rust gives:
+- C-level speed without a garbage collector, which matters with millions of objects in the tree;
+- safe multithreaded directory walking: a few lines with rayon, and the compiler rules out data races;
+- direct access to system APIs (`statfs`, file metadata, `NSFileManager`, LaunchServices) without extra layers.
 
-**Rust: rdzeń i skaner.** Skanowanie dysku to miliony wywołań systemowych i sporo pracy procesora. Rust daje:
-- wydajność na poziomie C bez garbage collectora, co ma znaczenie przy milionach obiektów w drzewie;
-- bezpieczne wielowątkowe przechodzenie po katalogach; z rayon to kilka linijek, a kompilator pilnuje, żeby nie było wyścigów;
-- bezpośredni dostęp do API systemu (`statfs`, metadane plików) bez dodatkowych warstw.
+For example, scanning `~/Prywatne` (9.5 GB, 188k files) takes 2.3 s in a release build.
 
-Przykład: skan `~/Prywatne` (9,5 GB, 188 tys. plików) trwa 2,3 s w wersji release.
+**Tauri 2: the app shell.** It joins the Rust core with a web UI:
+- the app is small, about 5 MB, because it uses the WebKit built into macOS instead of shipping Chromium like Electron;
+- Rust ↔ UI talk is plain commands and events;
+- a permission system lets the UI do only what's explicitly allowed;
+- Windows and Linux builds are possible if ever needed.
 
-**Tauri 2: szkielet aplikacji.** Łączy rdzeń w Rust z interfejsem webowym:
-- apka jest mała, kilka MB, bo korzysta z wbudowanego w macOS WebKitu, zamiast dołączać całego Chromium jak Electron;
-- komunikacja Rust ↔ interfejs to proste polecenia i zdarzenia;
-- system uprawnień pozwala interfejsowi tylko na to, co jawnie dopuszczone;
-- w razie potrzeby da się zbudować wersję na Windows i Linuksa.
+**React + TypeScript: the UI.** Interactive visualizations (the map, selection, panels) are easiest in web tech. TypeScript keeps the types in line with what Rust returns.
 
-**React + TypeScript: interfejs.** Interaktywne wizualizacje (mapa, zaznaczanie, panele) najwygodniej robi się w technologiach webowych. TypeScript pilnuje zgodności typów z tym, co zwraca Rust.
+**d3-hierarchy: the map layout.** A proven squarified treemap implementation that splits a rectangle into tiles as close to square as possible. Only the layout math is used; React draws.
 
-**d3-hierarchy: układ mapy.** Sprawdzona implementacja algorytmu squarified treemap, który dzieli prostokąt na kafelki o proporcjach jak najbliższych kwadratu. Używamy tylko liczenia układu, rysuje React.
+**Vite + pnpm: building the UI.** Vite gives an instant dev server with hot reload. pnpm is fast and saves disk space, which an app about saving disk space should appreciate.
 
-**Vite + pnpm: budowanie interfejsu.** Vite daje błyskawiczny serwer deweloperski z natychmiastowym przeładowaniem. pnpm jest szybki i oszczędny na miejscu na dysku, co przy aplikacji do sprzątania dysku wypada docenić.
+## Build and install
 
-## Uruchomienie
+### Requirements
 
-### Wymagania
+- A Mac with Apple Silicon. Built and tested on macOS 15. The UI uses modern CSS (`oklch`, `color-mix`), so it needs the WebKit of Safari 16.4 or later.
+- [Rust](https://rustup.rs) (stable):
+  ```bash
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  ```
+- [Node.js](https://nodejs.org) 20 or later and [pnpm](https://pnpm.io)
+- Xcode Command Line Tools:
+  ```bash
+  xcode-select --install
+  ```
+- About 12 GB of free disk space for the build (see [Size](#size)).
 
-- macOS 11 lub nowszy
-- [Rust](https://rustup.rs) (stable)
-- [Node.js](https://nodejs.org) 20+ i [pnpm](https://pnpm.io)
-- Xcode Command Line Tools: `xcode-select --install`
+### 1. Get the code and dependencies
 
-### Tryb deweloperski
+```bash
+git clone https://github.com/MarcinSzyc/kurz.git
+cd kurz
+pnpm install
+```
+
+### 2. Build Kurz.app
+
+```bash
+pnpm tauri build --bundles app
+```
+
+This builds the UI, compiles Rust with optimizations and bundles the app. The first build takes about 3 minutes on an M-series Mac; later ones are faster. The result is:
+
+```
+src-tauri/target/release/bundle/macos/Kurz.app
+```
+
+Leave out `--bundles app` to also get a `.dmg` installer in `src-tauri/target/release/bundle/dmg/`.
+
+### 3. Sign it locally
+
+The build is unsigned for distribution. Give it an ad-hoc signature so macOS runs it as one consistent app:
+
+```bash
+codesign --force --deep --sign - src-tauri/target/release/bundle/macos/Kurz.app
+```
+
+Check it:
+
+```bash
+codesign --verify --deep --strict --verbose=2 src-tauri/target/release/bundle/macos/Kurz.app
+```
+
+It should say `valid on disk` and `satisfies its Designated Requirement`. An app you build and sign yourself isn't quarantined, so Gatekeeper lets it open. Sharing it with other people would need a Developer ID signature and notarization, which this project doesn't set up.
+
+### 4. Install
+
+If Kurz is running, quit it first: menu bar icon → **Quit Kurz**. Then copy it into Applications and open it:
+
+```bash
+ditto src-tauri/target/release/bundle/macos/Kurz.app /Applications/Kurz.app
+```
+
+```bash
+open /Applications/Kurz.app
+```
+
+### Updating
+
+Pull the new code and repeat steps 2–4: build, sign, quit the running Kurz, copy, open. Each local build gets a new ad-hoc signature, so macOS may ask again for access to your folders, and Full Disk Access may need to be granted again (see [macOS permissions](#macos-permissions)).
+
+### Uninstalling
+
+Quit Kurz from the menu bar, then remove the app and, if you want, its settings and history:
+
+```bash
+rm -rf /Applications/Kurz.app
+```
+
+```bash
+rm -rf ~/Library/Application\ Support/com.marcinszyc.kurz
+```
+
+### Size
+
+| What | Size |
+|---|---|
+| `Kurz.app` on disk | **5.0 MB** (4.5 MB executable, 0.5 MB resources) |
+| Architecture | arm64 (Apple Silicon) |
+| Memory at rest, before a scan | about 58 MB |
+| Memory after scanning a home folder with ~3 million files | a few hundred MB, freed on quit |
+| Build output in `src-tauri/target` (debug + release) | about 11 GB |
+
+The build output is only needed to build again. To get that space back, which is the point of Kurz after all:
+
+```bash
+cd src-tauri && cargo clean
+```
+
+## Development
+
+### Run in development mode
 
 ```bash
 pnpm install
 pnpm tauri dev
 ```
 
-Otwiera okno aplikacji z automatycznym przeładowaniem po zmianach w interfejsie i w Rust.
+This opens the app window and reloads it when you change the UI or the Rust code. A dev build scans several times slower than a release build.
 
-### Budowanie aplikacji
-
-```bash
-pnpm tauri build
-```
-
-Gotowa aplikacja trafia do `src-tauri/target/release/bundle/macos/Kurz.app`, a instalator do `src-tauri/target/release/bundle/dmg/`.
-
-### Testy
+### Tests
 
 ```bash
 cd src-tauri && cargo test
 ```
 
-### Pomiar szybkości skanera z wiersza poleceń
+```bash
+cd src-tauri && cargo clippy --all-targets
+```
+
+```bash
+pnpm build
+```
+
+The last one type-checks and builds the UI.
+
+### Benchmark the scanner from the command line
 
 ```bash
 cd src-tauri && cargo run --release --example scan -- ~/Projects
 ```
 
-### Pasek menu
+It prints the scan time, the largest entries and the recommendations.
 
-Kurz pokazuje w pasku menu macOS mały wskaźnik zapełnienia dysku w jednym z czterech stylów (pasek, „zbiornik”, trzy płytki albo ikona Kurza z kropką) i krótki tekst: procent zajętego miejsca, zajęte z całości albo wolne miejsce. Poniżej progu ikona jest monochromatyczna jak inne ikony paska; od 80% robi się bursztynowa, od 95% koralowa (tekst zostaje w kolorze systemowym). Styl, tekst, progi i częstotliwość odświeżania ustawisz w **••• → Menu bar…**. Ustawienia trafiają do `~/Library/Application Support/com.marcinszyc.kurz/settings.json`.
+### Look at the menu bar icons
 
-Gdy wskaźnik jest włączony, zamknięcie okna tylko je chowa i Kurz działa dalej w pasku menu. Okno otworzysz z menu wskaźnika albo klikając ikonę w Docku. Żeby zamknąć aplikację, wybierz **Quit Kurz** z menu wskaźnika.
+```bash
+cd src-tauri && KURZ_ICON_SHEET=/tmp/kurz-icons.png cargo test icon_sheet -- --ignored
+```
 
-### Uprawnienia macOS
+It writes every icon style at each level into one PNG.
 
-Przy pierwszym skanie macOS zapyta o dostęp do Biurka, Dokumentów i Pobranych. Żeby przeskanować wszystko, także dane aplikacji w `~/Library`, nadaj Kurz pełny dostęp do dysku: **Ustawienia systemowe → Prywatność i ochrona → Pełny dostęp do dysku**. Bez tego część folderów pojawi się jako „nieczytelne”.
+## Menu bar
 
-## Struktura projektu
+Kurz shows a small disk gauge in the macOS menu bar in one of four styles (a bar, a tank, three slabs, or the Kurz sprite with a dot) next to a short text: percent used, used of total, or free space. Below the first threshold the icon is monochrome like other menu bar icons; from 80% it turns amber, from 95% coral. The text stays in the system color, as macOS doesn't let apps color it. Style, text, thresholds and refresh rate are in **••• → Menu bar…**.
+
+With the menu bar item on, closing the window only hides it and Kurz keeps running in the menu bar. Open the window again from the menu bar item or the Dock icon. To quit, choose **Quit Kurz** in the menu bar item.
+
+## macOS permissions
+
+On the first scan macOS asks for access to Desktop, Documents and Downloads. To scan everything, including app data in `~/Library`, give Kurz Full Disk Access: **System Settings → Privacy & Security → Full Disk Access**. Without it some folders show up as unreadable.
+
+## Project structure
 
 ```
 kurz/
-├── src/                    # interfejs (React + TypeScript)
-│   ├── App.tsx
-│   ├── components/         # CleanUp, MapView, HistoryView, Tray, MenuBarSettings, HowItWorks
-│   └── lib/                # wywołania Rusta, formatowanie
-├── src-tauri/              # rdzeń (Rust)
-│   ├── src/scanner.rs      # równoległy skaner + testy
-│   ├── src/disk.rs         # informacje o wolumenie
-│   ├── src/categories.rs   # kategorie folderów
-│   ├── src/menubar.rs      # wskaźnik w pasku menu
-│   ├── src/gauge.rs        # rysowanie ikony-pierścienia
-│   ├── src/settings.rs     # ustawienia (JSON)
-│   ├── src/rules.rs        # reguły rekomendacji i miejsca chronione
-│   ├── src/recommend.rs    # dopasowanie reguł do skanu
-│   ├── src/about.rs        # „czym to jest”: aplikacja-właściciel, opisy znanych folderów
-│   ├── src/cleanup.rs      # sprawdzanie ścieżek, Kosz, usuwanie, przywracanie
-│   ├── src/history.rs      # historia: sprzątania, wolne miejsce, rozmiary (JSON)
-│   ├── src/lib.rs          # polecenia i zdarzenia Tauri
-│   ├── examples/scan.rs    # benchmark z linii poleceń
-│   └── tauri.conf.json     # konfiguracja okna i paczki
-└── design/                 # docelowy design (mockup.html) i ikona
+├── src/                    # UI (React + TypeScript)
+│   ├── App.tsx             # header, tabs, shared tray state
+│   ├── components/         # CleanUp, MapView, HistoryView, Tray, HeaderMenu,
+│   │                       # MenuBarSettings, HowItWorks
+│   ├── lib/                # calls into Rust, the tray model, formatting
+│   └── assets/             # app icon, Geist fonts (SIL OFL)
+├── src-tauri/              # core (Rust)
+│   ├── src/scanner.rs      # parallel scanner + tests
+│   ├── src/rules.rs        # cleanup rules and protected places
+│   ├── src/recommend.rs    # matching the rules against a scan
+│   ├── src/about.rs        # "what is this": owning app, notes for opaque folders
+│   ├── src/cleanup.rs      # path checks, Trash, delete, restore
+│   ├── src/history.rs      # cleanups, free space, sizes over time (JSON)
+│   ├── src/categories.rs   # folder categories
+│   ├── src/menubar.rs      # the menu bar item
+│   ├── src/gauge.rs        # drawing the menu bar icon
+│   ├── src/disk.rs         # volume capacity
+│   ├── src/settings.rs     # settings (JSON)
+│   ├── src/lib.rs          # Tauri commands and events
+│   ├── examples/scan.rs    # command-line benchmark
+│   └── tauri.conf.json     # window and bundle configuration
+└── design/                 # target designs (HTML mockups) and the icon
 ```
 
-## Jak powstaje ten projekt
+## How this project is built
 
-Kurz jest budowany agentowo, z agentem AI (Claude Code), **na czystych promptach**:
+Kurz is built agentically, with an AI agent (Claude Code), **on plain prompts**:
 
-- **Bez skilli.** Nie używamy gotowych skilli ani własnych zestawów instrukcji dla agenta. Każdy krok to zwykła rozmowa: opis, czego chcemy, screen albo uwaga do wyniku.
-- **Bez wiki.** Nie prowadzimy osobnej bazy wiedzy ani dokumentacji dla agenta. Źródłem prawdy są kod, testy, historia gita i ten README.
-- **Lekko.** Apka ma być mała i szybka: minimum zależności, bez bazy danych, bez serwera, bez ciężkich frameworków. Każdą nową zależność trzeba uzasadnić.
+- **No skills.** No ready-made skills or custom instruction sets for the agent. Every step is a plain conversation: what we want, a screenshot, or a note about the result.
+- **No wiki.** No separate knowledge base or docs for the agent. The source of truth is the code, the tests, the git history and this README.
+- **Lightweight.** The app should stay small and fast: minimal dependencies, no database, no server, no heavy frameworks. Every new dependency has to earn its place.
 
-Pracujemy małymi krokami: plan etapu, implementacja, testy, commit. Każdy commit jest podpisany jako współtworzony z agentem.
+We work in small steps: plan, implement, test, commit. Every commit is marked as co-authored with the agent.
 
-## Ikona
+## Icon
 
-Puchata kulka kurzu z dużymi oczami, inspirowana klimatem filmów studia Ghibli. To oryginalna grafika, narysowana w SVG na potrzeby tego projektu. Źródło: [`design/icon.svg`](design/icon.svg).
+A fluffy dust bunny with big eyes, in the spirit of Studio Ghibli films. It's original artwork drawn in SVG for this project: [`design/icon.svg`](design/icon.svg).
