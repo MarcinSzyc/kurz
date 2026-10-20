@@ -136,6 +136,16 @@ cd kurz
 
 The script ([`scripts/install.sh`](scripts/install.sh), also `pnpm install:app`) installs dependencies, builds `Kurz.app`, signs it ad-hoc, quits a running Kurz, copies it into `/Applications` and opens it. Pass `--no-open` to skip opening it. To update later, pull and run it again. The steps below are what it does, if you'd rather do them by hand.
 
+### Keep permissions across builds (once)
+
+macOS remembers Full Disk Access per code signature, and an ad-hoc signature changes with every build, so each new build would ask again. Create a local signing certificate once, and every build keeps the same identity:
+
+```bash
+./scripts/setup-signing.sh
+```
+
+It adds a certificate named "Kurz Local Signing" to your login keychain and trusts it for code signing only; macOS asks for your password. `scripts/install.sh` then signs with it. Grant Full Disk Access one more time after the first build signed this way; later builds keep it. Remove the certificate any time in Keychain Access.
+
 ### 1. Get the code and dependencies
 
 ```bash
@@ -188,7 +198,7 @@ open /Applications/Kurz.app
 
 ### Updating
 
-Pull the new code and run `./scripts/install.sh` again, or repeat steps 2–4 by hand: build, sign, quit the running Kurz, copy, open. Each local build gets a new ad-hoc signature, so macOS may ask again for access to your folders, and Full Disk Access may need to be granted again (see [macOS permissions](#macos-permissions)).
+Pull the new code and run `./scripts/install.sh` again, or repeat steps 2–4 by hand: build, sign, quit the running Kurz, copy, open. With an ad-hoc signature each build is a new app to macOS, so it asks again for folder access and Full Disk Access; set up the [local signing certificate](#keep-permissions-across-builds-once) once to avoid that.
 
 ### Uninstalling
 
@@ -310,6 +320,7 @@ kurz/
 │   ├── examples/scan.rs    # command-line benchmark
 │   └── tauri.conf.json     # window and bundle configuration
 ├── scripts/install.sh      # build, sign and install Kurz.app
+├── scripts/setup-signing.sh # a local signing certificate, so builds keep permissions
 └── design/                 # target designs (HTML mockups) and the icon
 ```
 

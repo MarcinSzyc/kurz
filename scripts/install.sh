@@ -25,7 +25,17 @@ step "2/5 Building Kurz.app (a few minutes the first time)"
 pnpm tauri build --bundles app
 
 step "3/5 Signing"
-codesign --force --deep --sign - "$APP"
+# A stable identity keeps Full Disk Access across builds; see scripts/setup-signing.sh.
+IDENTITY="Kurz Local Signing"
+if security find-identity -v -p codesigning 2>/dev/null | grep -q "\"$IDENTITY\""; then
+    codesign --force --deep --sign "$IDENTITY" "$APP"
+    echo "Signed with \"$IDENTITY\"."
+    STABLE=1
+else
+    codesign --force --deep --sign - "$APP"
+    echo "Signed ad-hoc. Run scripts/setup-signing.sh once so new builds keep Full Disk Access."
+    STABLE=0
+fi
 codesign --verify --deep --strict "$APP"
 
 step "4/5 Installing into $DEST"
@@ -44,6 +54,6 @@ codesign --verify --deep --strict "$DEST"
 
 step "5/5 Done"
 echo "Installed $(du -sh "$DEST" | cut -f1) at $DEST"
-echo "A new build has a new signature: macOS may ask again for folder access, and Full Disk Access may need turning on again."
+[ "$STABLE" = 0 ] && echo "An ad-hoc build has a new signature: macOS may ask again for folder access, and Full Disk Access may need turning on again."
 [ "$OPEN" = 1 ] && open "$DEST"
 exit 0
