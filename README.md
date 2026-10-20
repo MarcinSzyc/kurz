@@ -191,7 +191,7 @@ rm -rf ~/Library/Application\ Support/com.marcinszyc.kurz
 
 | What | Size |
 |---|---|
-| `Kurz.app` on disk | **5.0 MB** (4.5 MB executable, 0.5 MB resources) |
+| `Kurz.app` on disk | **5.1 MB** (4.6 MB executable, 0.5 MB resources) |
 | Architecture | arm64 (Apple Silicon) |
 | Memory at rest, before a scan | about 58 MB |
 | Memory after scanning a home folder with ~3 million files | a few hundred MB, freed on quit |
