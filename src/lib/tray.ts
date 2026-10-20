@@ -71,9 +71,12 @@ export interface TrayEntry {
   size: number;
   risk: Risk;
   category: Category;
+  /** An app that should be quit before this is removed. */
+  runningApp?: string;
 }
 
 export const fromRecommendation = (r: Recommendation): TrayEntry => ({
+  runningApp: r.owner?.running ? r.owner.name : undefined,
   key: r.id,
   label: r.label,
   location: r.location,

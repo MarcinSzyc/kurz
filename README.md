@@ -22,6 +22,7 @@ Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folder
 | Wskaźnik w pasku menu macOS: cztery style ikony (Bar, Tank, Slabs, Sprite), konfigurowalny tekst, kolor bursztynowy/koralowy po przekroczeniu progów (domyślnie 80% i 95%) | ✅ gotowe |
 | Okno „How it works” (z menu •••): jak działa skan, kategorie, reguły rekomendacji, miejsca chronione i usuwanie, generowane z tych samych reguł, których używa apka | ✅ gotowe |
 | Ekran **Clean up**: cel „I need X GB” sam napełnia koszyk najbezpieczniejszymi pozycjami; trzy grupy: *Safe to delete*, *Rebuildable*, *Take a look*; data ostatniej zmiany każdej pozycji | ✅ gotowe |
+| „Czym to jest?” pod nazwą każdej pozycji: aplikacja-właściciel rozpoznana lokalnie przez macOS (nazwa, czy jest zainstalowana, czy działa), opisy znanych folderów (np. pliki aktualizacji `*.ShipIt`, cache TypeScript); ostrzeżenie „Quit … first” i „App not installed” | ✅ gotowe |
 | Czyszczenie z wyborem przy każdym usunięciu: do Kosza albo na stałe; Undo; „Empty from Trash” usuwa tylko pozycje z tego sprzątania | ✅ gotowe |
 | Ekran **Map**: spokojna mapa kafelkowa z dwoma poziomami, kolory według kategorii, kliknięcie kafelka dodaje folder do koszyka wspólnego z Clean up, › wchodzi do folderu, „Only removable” przygasza foldery z Twoimi plikami | ✅ gotowe |
 | Zakładka **History**: odzyskane miejsce, tempo zapełniania dysku, wykres wolnego miejsca (30/90 dni) z zaznaczonymi sprzątaniami, poprzednie sprzątania z przywracaniem pojedynczych pozycji z Kosza, foldery, które odrastają | ✅ gotowe |
@@ -156,6 +157,7 @@ kurz/
 │   ├── src/settings.rs     # ustawienia (JSON)
 │   ├── src/rules.rs        # reguły rekomendacji i miejsca chronione
 │   ├── src/recommend.rs    # dopasowanie reguł do skanu
+│   ├── src/about.rs        # „czym to jest”: aplikacja-właściciel, opisy znanych folderów
 │   ├── src/cleanup.rs      # sprawdzanie ścieżek, Kosz, usuwanie, przywracanie
 │   ├── src/history.rs      # historia: sprzątania, wolne miejsce, rozmiary (JSON)
 │   ├── src/lib.rs          # polecenia i zdarzenia Tauri

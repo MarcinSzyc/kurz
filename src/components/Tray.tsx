@@ -225,6 +225,11 @@ function ConfirmSheet({
             );
           })}
         </div>
+        {entries.some((e) => e.runningApp) && (
+          <p className="note warn sheet-note">
+            Quit {[...new Set(entries.flatMap((e) => (e.runningApp ? [e.runningApp] : [])))].join(", ")} first, so they aren't using the files.
+          </p>
+        )}
         <div className="confirm-modes">
           {modes.map((m) => (
             <label key={m.id} className={`mode ${mode === m.id ? "on" : ""}`}>

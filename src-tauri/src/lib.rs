@@ -1,3 +1,4 @@
+mod about;
 mod categories;
 pub mod cleanup;
 mod disk;
@@ -315,7 +316,19 @@ fn now() -> i64 {
 fn get_recommendations(state: State<AppState>) -> Result<Vec<recommend::Item>, String> {
     let guard = state.result.lock().unwrap();
     let result = guard.as_ref().ok_or("Nothing has been scanned yet")?;
-    Ok(recommend::recommend(&result.tree, &result.root, now()))
+    let mut items = recommend::recommend(&result.tree, &result.root, now());
+    drop(guard);
+    for item in &mut items {
+        let reason = rules::RULES.iter().find(|r| r.id == item.rule).map_or("", |r| r.reason);
+        let single = (item.paths.len() == 1).then(|| Path::new(&item.paths[0]));
+        let about = about::describe(item.rule, reason, single);
+        if let Some(label) = about.label {
+            item.label = label;
+        }
+        item.about = about.what;
+        item.owner = about.owner;
+    }
+    Ok(items)
 }
 
 #[derive(Deserialize)]

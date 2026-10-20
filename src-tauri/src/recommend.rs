@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
+use crate::about::Owner;
 use crate::categories::Category;
 use crate::rules::{self, Matcher, RULES, Risk, Rule};
 use crate::scanner::{Kind, Node};
@@ -26,6 +27,10 @@ pub struct Item {
     pub size: u64,
     /// Latest change (Unix seconds) in any of the paths.
     pub modified: i64,
+    /// What it is, in a sentence; filled in by `about::describe` before reaching the UI.
+    pub about: String,
+    /// The app it belongs to, when Kurz can tell.
+    pub owner: Option<Owner>,
 }
 
 struct Match {
@@ -157,6 +162,8 @@ fn to_items(rule: &Rule, matches: Vec<Match>, home: &Path) -> Vec<Item> {
                     paths: vec![abs(&m)],
                     size: m.size,
                     modified: m.modified,
+                    about: String::new(),
+                    owner: None,
                 }
             })
             .collect(),
@@ -187,6 +194,8 @@ fn to_items(rule: &Rule, matches: Vec<Match>, home: &Path) -> Vec<Item> {
                 paths: matches.iter().map(abs).collect(),
                 size,
                 modified: matches.iter().map(|m| m.modified).max().unwrap_or(0),
+                about: String::new(),
+                owner: None,
             }]
         }
     }

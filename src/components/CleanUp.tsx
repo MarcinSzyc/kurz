@@ -80,7 +80,14 @@ export function CleanUp({ items, selected, goal, maxGb, onGoal, onToggle, onSetM
                   <div key={item.id} className={`rec-row ${on ? "on" : ""}`}>
                     <span className={`chip cat-${item.category}`} />
                     <div className="rec-name">
-                      <span>{item.label}</span>
+                      <span className="rec-title">
+                        <span>{item.label}</span>
+                        {item.owner?.running && <span className="tag warn">Quit {item.owner.name} first</span>}
+                        {item.owner && !item.owner.installed && <span className="tag ok">App not installed</span>}
+                      </span>
+                      <span className="rec-about" title={item.about}>
+                        {item.about}
+                      </span>
                       <span className="mono muted" title={item.paths.join("\n")}>
                         {item.location}
                       </span>

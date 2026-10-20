@@ -104,6 +104,10 @@ export interface Recommendation {
   paths: string[];
   size: number;
   modified: number;
+  /** What it is, in a sentence. */
+  about: string;
+  /** The app it belongs to, when Kurz can tell. */
+  owner: { name: string; installed: boolean; running: boolean } | null;
 }
 
 export type CleanMode = "trash" | "delete";
