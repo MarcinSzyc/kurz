@@ -18,6 +18,7 @@ Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folder
 |---|---|
 | Szybki, równoległy skan folderu z postępem na żywo i możliwością anulowania | ✅ gotowe |
 | Pasek dysku w nagłówku: wolne miejsce i zajętość | ✅ gotowe |
+| Jasny i ciemny motyw: domyślnie jak w macOS, przełącznik ◐ ☀ ☾ w nagłówku | ✅ gotowe |
 | Wskaźnik w pasku menu macOS: pierścień zajętości dysku, konfigurowalny tekst, kolor pomarańczowy/czerwony po przekroczeniu progów | ✅ gotowe |
 | Ekran „How it works”: jak działa skan, kategorie, reguły rekomendacji i usuwania, generowany z tych samych reguł, których używa apka | ✅ gotowe |
 | Ekran **Clean up**: cel „I need X GB” sam napełnia koszyk najbezpieczniejszymi pozycjami; trzy grupy: *Safe to delete*, *Rebuildable*, *Take a look*; data ostatniej zmiany każdej pozycji | ✅ gotowe |

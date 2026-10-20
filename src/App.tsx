@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   cancelScan,
   cleanUp,
@@ -41,6 +42,23 @@ const LOW_FREE = 0.1;
 
 type Status = "idle" | "scanning" | "done";
 type Page = "cleanup" | "map" | "history" | "how";
+type Theme = "auto" | "light" | "dark";
+
+const THEMES: { id: Theme; label: string; icon: string }[] = [
+  { id: "auto", label: "Match macOS", icon: "◐" },
+  { id: "light", label: "Light", icon: "☀" },
+  { id: "dark", label: "Dark", icon: "☾" },
+];
+
+/** A per-device preference, so the browser's storage is enough; it may be unavailable. */
+function storedTheme(): Theme {
+  try {
+    const t = localStorage.getItem("kurz.theme");
+    return t === "light" || t === "dark" ? t : "auto";
+  } catch {
+    return "auto";
+  }
+}
 
 const TABS: { id: Page; label: string }[] = [
   { id: "cleanup", label: "Clean up" },
@@ -59,6 +77,7 @@ function App() {
   const [menuBar, setMenuBar] = useState<MenuBarSettings | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [page, setPage] = useState<Page>("cleanup");
+  const [theme, setTheme] = useState<Theme>(storedTheme);
 
   const [items, setItems] = useState<Recommendation[]>([]);
   const [goal, setGoal] = useState(0);
@@ -90,6 +109,22 @@ function App() {
     }
     return next;
   }
+
+  // The window's appearance drives prefers-color-scheme in the webview, so the CSS needs no changes.
+  useEffect(() => {
+    try {
+      getCurrentWindow()
+        .setTheme(theme === "auto" ? null : theme)
+        .catch(() => {});
+    } catch {
+      // Outside the app window (e.g. a plain browser) there's no window to theme.
+    }
+    try {
+      localStorage.setItem("kurz.theme", theme);
+    } catch {
+      // Not saved; the choice still applies until the app closes.
+    }
+  }, [theme]);
 
   useEffect(() => {
     homeDir().then((h) => {
@@ -252,6 +287,13 @@ function App() {
           </nav>
         </div>
         <div className="actions">
+          <div className="segmented theme" role="group" aria-label="Appearance">
+            {THEMES.map((t) => (
+              <button key={t.id} className={theme === t.id ? "active" : ""} onClick={() => setTheme(t.id)} title={t.label} aria-label={t.label}>
+                {t.icon}
+              </button>
+            ))}
+          </div>
           <button className={`ghost ${page === "how" ? "active" : ""}`} onClick={() => setPage(page === "how" ? "cleanup" : "how")}>
             How it works
           </button>

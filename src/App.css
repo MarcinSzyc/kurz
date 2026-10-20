@@ -2099,3 +2099,9 @@ button.link.strong {
 .grow-rate strong {
   font-size: 12.5px;
 }
+
+.segmented.theme button {
+  padding: 4px 9px;
+  font-size: 13px;
+  line-height: 1;
+}
