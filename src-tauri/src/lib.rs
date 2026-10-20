@@ -1,18 +1,22 @@
 mod categories;
+pub mod cleanup;
 mod disk;
 mod gauge;
+mod history;
 mod menubar;
+pub mod recommend;
 mod rules;
 pub mod scanner;
 mod settings;
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent};
 
 use categories::Category;
@@ -38,6 +42,9 @@ struct AppState {
     result: Mutex<Option<ScanResult>>,
     scanning: AtomicBool,
     cancel: Arc<AtomicBool>,
+    cleaning: AtomicBool,
+    /// Subtrees taken out of the scan by a cleanup, by original path, so a restore can put them back.
+    removed: Mutex<HashMap<String, Node>>,
 }
 
 #[derive(Clone, Serialize)]
@@ -298,6 +305,169 @@ fn how_it_works() -> HowItWorks {
     }
 }
 
+fn history_path(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path().app_config_dir().map(|dir| dir.join("history.json")).map_err(|e| e.to_string())
+}
+
+fn now() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64)
+}
+
+#[tauri::command]
+fn get_recommendations(state: State<AppState>) -> Result<Vec<recommend::Item>, String> {
+    let guard = state.result.lock().unwrap();
+    let result = guard.as_ref().ok_or("Nothing has been scanned yet")?;
+    Ok(recommend::recommend(&result.tree, &result.root, now()))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CleanRequest {
+    label: String,
+    paths: Vec<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CleanProgress {
+    done: usize,
+    total: usize,
+    current: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Failure {
+    path: String,
+    error: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CleanReport {
+    /// `None` when nothing could be removed.
+    cleanup: Option<history::Cleanup>,
+    freed: u64,
+    failed: Vec<Failure>,
+}
+
+/// Takes `path` out of the scanned tree, returning its size, and keeps it for a later restore.
+fn take_from_tree(state: &AppState, path: &Path) -> u64 {
+    let mut guard = state.result.lock().unwrap();
+    let Some(result) = guard.as_mut() else { return 0 };
+    let Ok(relative) = path.strip_prefix(&result.root) else { return 0 };
+    match result.tree.remove(relative) {
+        Some(node) => {
+            let size = node.size;
+            state.removed.lock().unwrap().insert(path.to_string_lossy().into_owned(), node);
+            size
+        }
+        None => 0,
+    }
+}
+
+fn put_back_in_tree(state: &AppState, path: &Path) {
+    let Some(node) = state.removed.lock().unwrap().remove(&*path.to_string_lossy()) else { return };
+    let mut guard = state.result.lock().unwrap();
+    if let Some(result) = guard.as_mut()
+        && let Ok(relative) = path.strip_prefix(&result.root)
+    {
+        result.tree.restore(relative, node);
+    }
+}
+
+fn run_cleanup(app: &AppHandle, items: Vec<CleanRequest>, mode: cleanup::Mode) -> Result<CleanReport, String> {
+    let state = app.state::<AppState>();
+    let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    let total = items.iter().map(|i| i.paths.len()).sum();
+    let (mut done, mut failed, mut cleaned) = (0, Vec::new(), Vec::new());
+
+    for item in items {
+        let (mut size, mut removed) = (0, Vec::new());
+        for path in item.paths {
+            let _ = app.emit("cleanup-progress", CleanProgress { done, total, current: path.clone() });
+            let p = PathBuf::from(&path);
+            let outcome = cleanup::check(&p, &home).and_then(|_| match mode {
+                cleanup::Mode::Trash => cleanup::move_to_trash(&p).map(Some).map_err(|e| e.to_string()),
+                cleanup::Mode::Delete => cleanup::delete(&p).map(|_| None).map_err(|e| e.to_string()),
+            });
+            match outcome {
+                Ok(trashed) => {
+                    size += take_from_tree(&state, &p);
+                    removed.push(history::Removed {
+                        original: path,
+                        trashed: trashed.map(|t| t.to_string_lossy().into_owned()),
+                        restored: false,
+                    });
+                }
+                Err(error) => failed.push(Failure { path, error }),
+            }
+            done += 1;
+        }
+        if !removed.is_empty() {
+            cleaned.push(history::CleanedItem { label: item.label, size, paths: removed });
+        }
+    }
+
+    let cleanup = (!cleaned.is_empty()).then(|| history::Cleanup {
+        id: format!("{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()),
+        at: now(),
+        mode,
+        items: cleaned,
+    });
+    if let Some(c) = &cleanup {
+        let path = history_path(app)?;
+        let mut all = history::load(&path);
+        all.cleanups.push(c.clone());
+        history::save(&path, &all).map_err(|e| e.to_string())?;
+    }
+    Ok(CleanReport { freed: cleanup.as_ref().map_or(0, |c| c.freed()), cleanup, failed })
+}
+
+/// Removes the given items, one path at a time, reporting `cleanup-progress` events.
+#[tauri::command]
+async fn clean_up(app: AppHandle, items: Vec<CleanRequest>, mode: cleanup::Mode) -> Result<CleanReport, String> {
+    let state = app.state::<AppState>();
+    if state.scanning.load(Ordering::SeqCst) {
+        return Err("Wait for the scan to finish".into());
+    }
+    if state.cleaning.swap(true, Ordering::SeqCst) {
+        return Err("A cleanup is already running".into());
+    }
+    let handle = app.clone();
+    let report = tauri::async_runtime::spawn_blocking(move || run_cleanup(&handle, items, mode)).await;
+    app.state::<AppState>().cleaning.store(false, Ordering::SeqCst);
+    report.map_err(|e| e.to_string())?
+}
+
+/// Moves trashed items of a cleanup back where they were: all of them, or just `paths`.
+#[tauri::command]
+fn restore_cleanup(app: AppHandle, state: State<AppState>, id: String, paths: Option<Vec<String>>) -> Result<Vec<Failure>, String> {
+    let path = history_path(&app)?;
+    let mut all = history::load(&path);
+    let cleanup = all.cleanups.iter_mut().find(|c| c.id == id).ok_or("That cleanup isn't in the history")?;
+    let mut failed = Vec::new();
+    for removed in cleanup.items.iter_mut().flat_map(|i| i.paths.iter_mut()) {
+        let wanted = paths.as_ref().is_none_or(|p| p.contains(&removed.original));
+        let Some(trashed) = removed.trashed.as_ref().filter(|_| wanted && !removed.restored) else { continue };
+        let original = PathBuf::from(&removed.original);
+        match cleanup::restore(Path::new(trashed), &original) {
+            Ok(()) => {
+                removed.restored = true;
+                put_back_in_tree(&state, &original);
+            }
+            Err(e) => failed.push(Failure { path: removed.original.clone(), error: e.to_string() }),
+        }
+    }
+    history::save(&path, &all).map_err(|e| e.to_string())?;
+    Ok(failed)
+}
+
+#[tauri::command]
+fn get_history(app: AppHandle) -> Result<history::History, String> {
+    Ok(history::load(&history_path(&app)?))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -328,6 +498,10 @@ pub fn run() {
             get_tree,
             get_menu_bar_settings,
             how_it_works,
+            get_recommendations,
+            clean_up,
+            restore_cleanup,
+            get_history,
             set_menu_bar_settings
         ])
         .build(tauri::generate_context!())

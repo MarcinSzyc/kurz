@@ -101,7 +101,7 @@ mod tests {
     use crate::scanner::Kind;
 
     fn dir(name: &str, children: Vec<Node>) -> Node {
-        Node { name: name.into(), kind: Kind::Dir, size: 1, files: 0, children }
+        Node { name: name.into(), kind: Kind::Dir, size: 1, files: 0, modified: 0, children }
     }
 
     #[test]

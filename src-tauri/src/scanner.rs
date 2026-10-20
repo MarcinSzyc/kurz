@@ -9,7 +9,7 @@ use std::cmp::Reverse;
 use std::collections::HashSet;
 use std::fs::{self, Metadata};
 use std::os::unix::fs::MetadataExt;
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
@@ -33,6 +33,8 @@ pub struct Node {
     pub size: u64,
     /// Number of files (non-directories) below this entry, itself included.
     pub files: u64,
+    /// Latest modification time (Unix seconds) of this entry or anything below it.
+    pub modified: i64,
     /// Sorted by size, largest first.
     pub children: Vec<Node>,
 }
@@ -52,6 +54,56 @@ impl Node {
             }
         }
         Some(node)
+    }
+
+    /// Detaches the descendant at `relative` and takes its size and file count off every ancestor.
+    pub fn remove(&mut self, relative: &Path) -> Option<Node> {
+        let mut names = relative.components().filter_map(|c| match c {
+            Component::Normal(n) => n.to_str(),
+            _ => None,
+        });
+        let first = names.next()?;
+        let rest: PathBuf = names.collect();
+        let index = self.children.iter().position(|c| &*c.name == first)?;
+        let removed = if rest.as_os_str().is_empty() {
+            self.children.remove(index)
+        } else {
+            self.children[index].remove(&rest)?
+        };
+        self.size -= removed.size;
+        self.files -= removed.files;
+        Some(removed)
+    }
+
+    /// Puts a node removed with `remove` back at `relative`, the path it was removed from.
+    pub fn restore(&mut self, relative: &Path, node: Node) -> bool {
+        let parents: Vec<&str> = match relative.parent() {
+            Some(parent) => parent.components().filter_map(|c| c.as_os_str().to_str()).collect(),
+            None => return false,
+        };
+        let mut chain = vec![];
+        let mut current: &mut Node = self;
+        for name in parents {
+            chain.push(name);
+            match current.children.iter_mut().position(|c| &*c.name == name) {
+                Some(i) => current = &mut current.children[i],
+                None => return false,
+            }
+        }
+        // Walk again to add the sizes, now that the parent is known to exist.
+        let (size, files) = (node.size, node.files);
+        let mut current: &mut Node = self;
+        current.size += size;
+        current.files += files;
+        for name in chain {
+            let i = current.children.iter().position(|c| &*c.name == name).unwrap();
+            current = &mut current.children[i];
+            current.size += size;
+            current.files += files;
+        }
+        let at = current.children.partition_point(|c| c.size >= size);
+        current.children.insert(at, node);
+        true
     }
 }
 
@@ -113,12 +165,12 @@ fn scan_entry(path: &Path, name: Box<str>, meta: &Metadata, ctx: &Ctx) -> Node {
         } else {
             Kind::Other
         };
-        return Node { name, kind, size, files: 1, children: Vec::new() };
+        return Node { name, kind, size, files: 1, modified: meta.mtime(), children: Vec::new() };
     }
 
     ctx.progress.dirs.fetch_add(1, Ordering::Relaxed);
     ctx.progress.bytes.fetch_add(size, Ordering::Relaxed);
-    let mut dir = Node { name, kind: Kind::Dir, size, files: 0, children: Vec::new() };
+    let mut dir = Node { name, kind: Kind::Dir, size, files: 0, modified: meta.mtime(), children: Vec::new() };
 
     let entries = match fs::read_dir(path) {
         Ok(entries) => entries,
@@ -156,6 +208,7 @@ fn scan_entry(path: &Path, name: Box<str>, meta: &Metadata, ctx: &Ctx) -> Node {
     dir.children.sort_unstable_by_key(|c| Reverse(c.size));
     dir.size += dir.children.iter().map(|c| c.size).sum::<u64>();
     dir.files = dir.children.iter().map(|c| c.files).sum();
+    dir.modified = dir.children.iter().map(|c| c.modified).fold(dir.modified, i64::max);
     dir
 }
 
@@ -237,6 +290,44 @@ mod tests {
         write(&tmp.path().join("a"), 10);
         let result = scan(tmp.path(), &AtomicBool::new(true), &Progress::default()).unwrap();
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn tracks_the_latest_change_below_a_folder() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::create_dir(tmp.path().join("a")).unwrap();
+        write(&tmp.path().join("a/old.txt"), 10);
+        let old = std::time::SystemTime::now() - std::time::Duration::from_secs(90 * 86_400);
+        fs::File::options().write(true).open(tmp.path().join("a/old.txt")).unwrap().set_modified(old).unwrap();
+        fs::File::open(tmp.path().join("a")).unwrap().set_modified(old).unwrap();
+
+        let root = scan_ok(tmp.path());
+
+        let a = root.find(Path::new("a")).unwrap();
+        let old_secs = old.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64;
+        assert_eq!(a.modified, old_secs);
+        assert!(root.modified > old_secs, "the root itself changed just now");
+    }
+
+    #[test]
+    fn removes_and_restores_subtrees() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("x/y")).unwrap();
+        write(&tmp.path().join("x/y/big.bin"), 500_000);
+        write(&tmp.path().join("x/small.txt"), 10);
+        let mut root = scan_ok(tmp.path());
+        let (size, files) = (root.size, root.files);
+
+        let removed = root.remove(Path::new("x/y")).unwrap();
+
+        assert_eq!(root.size, size - removed.size);
+        assert_eq!(root.files, files - 1);
+        assert!(root.find(Path::new("x/y")).is_none());
+        assert!(root.remove(Path::new("x/nope")).is_none());
+
+        assert!(root.restore(Path::new("x/y"), removed));
+        assert_eq!((root.size, root.files), (size, files));
+        assert!(root.find(Path::new("x/y/big.bin")).is_some());
     }
 
     #[test]

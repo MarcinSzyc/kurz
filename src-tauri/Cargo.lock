@@ -1924,6 +1924,8 @@ name = "kurz"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "objc2",
+ "objc2-foundation",
  "rayon",
  "serde",
  "serde_json",

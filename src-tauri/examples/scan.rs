@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
+use kurz_lib::recommend;
 use kurz_lib::scanner::{self, Progress};
 
 fn main() {
@@ -22,6 +23,13 @@ fn main() {
     );
     for child in tree.children.iter().take(10) {
         println!("{:>10}  {}", human(child.size), child.name);
+    }
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64;
+    let started = Instant::now();
+    let items = recommend::recommend(&tree, &root, now);
+    println!("\n{} recommendations in {:.2?}:", items.len(), started.elapsed());
+    for item in &items {
+        println!("{:>10}  {:<12} {} — {}", human(item.size), format!("{:?}", item.risk), item.label, item.location);
     }
 }
 
