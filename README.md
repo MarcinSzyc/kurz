@@ -19,8 +19,8 @@ Kurz skanuje folder domowy, buduje drzewo rozmiarów wszystkich plików i folder
 | Szybki, równoległy skan folderu z postępem na żywo i możliwością anulowania | ✅ gotowe |
 | Pasek dysku w nagłówku: wolne miejsce i zajętość | ✅ gotowe |
 | Jasny i ciemny motyw: domyślnie jak w macOS; przełącznik słońce/księżyc w nagłówku, Light / Dark / Auto w menu ••• | ✅ gotowe |
-| Wskaźnik w pasku menu macOS: pierścień zajętości dysku, konfigurowalny tekst, kolor pomarańczowy/czerwony po przekroczeniu progów | ✅ gotowe |
-| Ekran „How it works”: jak działa skan, kategorie, reguły rekomendacji i usuwania, generowany z tych samych reguł, których używa apka | ✅ gotowe |
+| Wskaźnik w pasku menu macOS: cztery style ikony (Bar, Tank, Slabs, Sprite), konfigurowalny tekst, kolor bursztynowy/koralowy po przekroczeniu progów (domyślnie 80% i 95%) | ✅ gotowe |
+| Okno „How it works” (z menu •••): jak działa skan, kategorie, reguły rekomendacji, miejsca chronione i usuwanie, generowane z tych samych reguł, których używa apka | ✅ gotowe |
 | Ekran **Clean up**: cel „I need X GB” sam napełnia koszyk najbezpieczniejszymi pozycjami; trzy grupy: *Safe to delete*, *Rebuildable*, *Take a look*; data ostatniej zmiany każdej pozycji | ✅ gotowe |
 | Czyszczenie z wyborem przy każdym usunięciu: do Kosza albo na stałe; Undo; „Empty from Trash” usuwa tylko pozycje z tego sprzątania | ✅ gotowe |
 | Ekran **Map**: spokojna mapa kafelkowa z dwoma poziomami, kolory według kategorii, kliknięcie kafelka dodaje folder do koszyka wspólnego z Clean up, › wchodzi do folderu, „Only removable” przygasza foldery z Twoimi plikami | ✅ gotowe |
@@ -131,7 +131,7 @@ cd src-tauri && cargo run --release --example scan -- ~/Projects
 
 ### Pasek menu
 
-Kurz pokazuje w pasku menu macOS mały pierścień, który zapełnia się razem z dyskiem, i krótki tekst: procent zajętego miejsca, zajęte z całości albo wolne miejsce. Od 80% pierścień robi się pomarańczowy, od 90% czerwony. Progi, tekst i częstotliwość odświeżania ustawisz w **Menu bar…** w oknie aplikacji. Ustawienia trafiają do `~/Library/Application Support/com.marcinszyc.kurz/settings.json`.
+Kurz pokazuje w pasku menu macOS mały wskaźnik zapełnienia dysku w jednym z czterech stylów (pasek, „zbiornik”, trzy płytki albo ikona Kurza z kropką) i krótki tekst: procent zajętego miejsca, zajęte z całości albo wolne miejsce. Poniżej progu ikona jest monochromatyczna jak inne ikony paska; od 80% robi się bursztynowa, od 95% koralowa (tekst zostaje w kolorze systemowym). Styl, tekst, progi i częstotliwość odświeżania ustawisz w **••• → Menu bar…**. Ustawienia trafiają do `~/Library/Application Support/com.marcinszyc.kurz/settings.json`.
 
 Gdy wskaźnik jest włączony, zamknięcie okna tylko je chowa i Kurz działa dalej w pasku menu. Okno otworzysz z menu wskaźnika albo klikając ikonę w Docku. Żeby zamknąć aplikację, wybierz **Quit Kurz** z menu wskaźnika.
 

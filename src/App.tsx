@@ -43,7 +43,7 @@ const MAP_DEPTH = 2;
 const LOW_FREE = 0.1;
 
 type Status = "idle" | "scanning" | "done";
-type Page = "cleanup" | "map" | "history" | "how";
+type Page = "cleanup" | "map" | "history";
 
 /** A per-device preference, so the browser's storage is enough; it may be unavailable. */
 function storedTheme(): Theme {
@@ -71,6 +71,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [menuBar, setMenuBar] = useState<MenuBarSettings | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [howOpen, setHowOpen] = useState(false);
   const [page, setPage] = useState<Page>("cleanup");
   const [theme, setTheme] = useState<Theme>(storedTheme);
 
@@ -306,7 +307,7 @@ function App() {
             </button>
           )}
           <ThemeToggle theme={theme} onTheme={setTheme} />
-          <MoreMenu theme={theme} onTheme={setTheme} onHowItWorks={() => setPage("how")} onMenuBar={() => setSettingsOpen(true)} />
+          <MoreMenu theme={theme} onTheme={setTheme} onHowItWorks={() => setHowOpen(true)} onMenuBar={() => setSettingsOpen(true)} />
         </div>
       </header>
 
@@ -316,9 +317,7 @@ function App() {
         </p>
       )}
 
-      {page === "how" ? (
-        <HowItWorks />
-      ) : page === "history" ? (
+      {page === "history" ? (
         <HistoryView
           onError={fail}
           onChanged={() => {
@@ -349,6 +348,7 @@ function App() {
         <MapView node={node} root={done.root} items={items} tray={tray} onOpen={open} onToggleFolder={toggleFolder} trayPanel={trayPanel(false)} />
       ) : null}
 
+      {howOpen && <HowItWorks onClose={() => setHowOpen(false)} />}
       {settingsOpen && menuBar && (
         <MenuBarSettingsPanel initial={menuBar} disk={disk} onClose={() => setSettingsOpen(false)} onSaved={setMenuBar} />
       )}

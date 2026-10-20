@@ -1,21 +1,23 @@
 import { useEffect, useRef, useState } from "react";
-import { setMenuBarSettings, type DiskInfo, type MenuBarSettings, type MenuBarText } from "../lib/api";
+import { setMenuBarSettings, type DiskInfo, type MenuBarIcon, type MenuBarSettings, type MenuBarText } from "../lib/api";
+import icon from "../assets/icon.png";
 
-const TEXT_OPTIONS: { id: MenuBarText; label: string }[] = [
+const ICONS: { id: MenuBarIcon; label: string }[] = [
+  { id: "bar", label: "Bar" },
+  { id: "tank", label: "Tank" },
+  { id: "slabs", label: "Slabs" },
+  { id: "sprite", label: "Sprite" },
+];
+const TEXTS: { id: MenuBarText; label: string }[] = [
   { id: "percentUsed", label: "Percent used" },
   { id: "usedOfTotal", label: "Used of total" },
   { id: "free", label: "Free space" },
   { id: "none", label: "Icon only" },
 ];
-const REFRESH_OPTIONS = [1, 5, 15, 60];
+const REFRESH = [1, 5, 15, 60];
 const SAVE_DELAY_MS = 250;
 
-interface Props {
-  initial: MenuBarSettings;
-  disk: DiskInfo | null;
-  onClose: () => void;
-  onSaved: (settings: MenuBarSettings) => void;
-}
+type Level = "normal" | "warning" | "critical";
 
 /** Same rules as the Rust side, so the preview matches the real menu bar. */
 function short(bytes: number): [number, string] {
@@ -30,55 +32,65 @@ function label(text: MenuBarText, disk: DiskInfo, usedPercent: number): string {
       return `${usedPercent.toFixed(0)}%`;
     case "usedOfTotal": {
       const [total, unit] = short(disk.total);
-      const used = disk.used / (unit === "TB" ? 1e12 : 1e9);
-      return `${num(used)}/${num(total)} ${unit}`;
+      return `${num(disk.used / (unit === "TB" ? 1e12 : 1e9))}/${num(total)} ${unit}`;
     }
     case "free": {
       const [free, unit] = short(disk.available);
-      return `${num(free)} ${unit} free`;
+      return `${num(free)} ${unit}`;
     }
     case "none":
       return "";
   }
 }
 
-function level(usedPercent: number, s: MenuBarSettings) {
-  return usedPercent >= s.criticalAt ? "critical" : usedPercent >= s.warnAt ? "warning" : "normal";
-}
+const levelOf = (p: number, s: MenuBarSettings): Level => (p >= s.criticalAt ? "critical" : p >= s.warnAt ? "warning" : "normal");
 
-export function Gauge({ fraction, state }: { fraction: number; state: string }) {
-  const r = 6.5;
-  const f = Math.min(Math.max(fraction, 0), 0.9999);
-  const angle = f * 2 * Math.PI;
-  const x = 9 + r * Math.sin(angle);
-  const y = 9 - r * Math.cos(angle);
-  return (
-    <svg className={`gauge ${state}`} width="18" height="18" viewBox="0 0 18 18" aria-hidden>
-      <circle cx="9" cy="9" r={r} className="gauge-track" />
-      {f > 0 && <path d={`M9 ${9 - r} A${r} ${r} 0 ${f > 0.5 ? 1 : 0} 1 ${x} ${y}`} className="gauge-fill" />}
-    </svg>
-  );
-}
-
-function Preview({ disk, settings, usedPercent, caption }: { disk: DiskInfo; settings: MenuBarSettings; usedPercent: number; caption: string }) {
-  // Scale "used" to the sample percentage so the labels stay consistent.
-  const sample = { ...disk, used: (disk.total * usedPercent) / 100, available: disk.total * (1 - usedPercent / 100) };
-  const text = label(settings.text, sample, usedPercent);
-  return (
-    <figure className="preview">
-      <div className="menubar-strip">
-        <span className="menubar-item">
-          <Gauge fraction={usedPercent / 100} state={level(usedPercent, settings)} />
-          {text && <span>{text}</span>}
+/** The menu bar icon drawn in CSS, matching what Rust renders. */
+export function MenuBarGlyph({ style, percent, level }: { style: MenuBarIcon; percent: number; level: Level }) {
+  const fill = Math.max(8, Math.min(100, percent));
+  const cls = `glyph ${level}`;
+  switch (style) {
+    case "bar":
+      return (
+        <span className={`${cls} g-bar`}>
+          <i style={{ width: `${fill}%` }} />
         </span>
-      </div>
-      <figcaption>{caption}</figcaption>
-    </figure>
-  );
+      );
+    case "tank":
+      return (
+        <span className={`${cls} g-tank`}>
+          <i style={{ height: `${fill}%` }} />
+        </span>
+      );
+    case "slabs": {
+      const lit = Math.ceil(percent / 34);
+      return (
+        <span className={`${cls} g-slabs`}>
+          {[0, 1, 2].map((i) => (
+            <i key={i} className={i < lit ? "lit" : ""} />
+          ))}
+        </span>
+      );
+    }
+    case "sprite":
+      return (
+        <span className={`${cls} g-sprite`}>
+          <img src={icon} alt="" />
+          {level !== "normal" && <i />}
+        </span>
+      );
+  }
+}
+
+interface Props {
+  initial: MenuBarSettings;
+  disk: DiskInfo | null;
+  onClose: () => void;
+  onSaved: (settings: MenuBarSettings) => void;
 }
 
 export function MenuBarSettingsPanel({ initial, disk, onClose, onSaved }: Props) {
-  const [settings, setSettings] = useState(initial);
+  const [s, setS] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
 
@@ -89,77 +101,118 @@ export function MenuBarSettingsPanel({ initial, disk, onClose, onSaved }: Props)
   }, [onClose]);
 
   function update(patch: Partial<MenuBarSettings>) {
-    const next = { ...settings, ...patch };
+    const next = { ...s, ...patch };
     if (patch.warnAt !== undefined && next.criticalAt <= next.warnAt) next.criticalAt = Math.min(99, next.warnAt + 1);
     if (patch.criticalAt !== undefined && next.warnAt >= next.criticalAt) next.warnAt = Math.max(1, next.criticalAt - 1);
-    setSettings(next);
+    setS(next);
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
       setMenuBarSettings(next).then(onSaved, (e) => setError(String(e)));
     }, SAVE_DELAY_MS);
   }
 
-  const usedPercent = disk ? (disk.used / disk.total) * 100 : 0;
+  const now = disk ? (disk.used / disk.total) * 100 : 58;
+  const getting = Math.min(s.criticalAt - 1, Math.max(s.warnAt, 85));
+  const almost = Math.max(s.criticalAt, 97);
+  // A disk at a sample fullness, for the preview labels.
+  const at = (p: number): DiskInfo | null => disk && { ...disk, used: (disk.total * p) / 100, available: disk.total * (1 - p / 100) };
 
   return (
-    <div className="overlay" onClick={onClose}>
-      <section className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Menu bar settings">
-        <header className="sheet-head">
+    <div className="overlay center" onClick={onClose}>
+      <section className="sheet modal menubar-modal" role="dialog" aria-label="Menu bar" onClick={(e) => e.stopPropagation()}>
+        <header className="modal-head">
           <div>
             <h2>Menu bar</h2>
-            <p className="muted">A small disk gauge in the macOS menu bar. Changes apply right away.</p>
+            <p className="sub">A small disk gauge in the macOS menu bar. Changes apply right away.</p>
           </div>
-          <button onClick={onClose}>Done</button>
+          <button className="cta" onClick={onClose}>
+            Done
+          </button>
         </header>
 
-        <label className="field toggle">
-          <input type="checkbox" checked={settings.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+        <label className="check">
+          <input type="checkbox" checked={s.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <i />
           <span>
             Show Kurz in the menu bar
             <small className="muted">When on, closing the window keeps Kurz running there.</small>
           </span>
         </label>
 
-        <fieldset className="field" disabled={!settings.enabled}>
-          <legend>Text next to the gauge</legend>
-          <div className="choices">
-            {TEXT_OPTIONS.map((o) => (
-              <label key={o.id} className={`choice ${settings.text === o.id ? "active" : ""}`}>
-                <input type="radio" name="text" checked={settings.text === o.id} onChange={() => update({ text: o.id })} />
-                <span>{o.label}</span>
-                <small className="muted">{disk ? label(o.id, disk, usedPercent) || "—" : ""}</small>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <fieldset className="field" disabled={!settings.enabled}>
-          <legend>Colors</legend>
-          <Threshold label="Turn orange at" state="warning" value={settings.warnAt} onChange={(warnAt) => update({ warnAt })} />
-          <Threshold label="Turn red at" state="critical" value={settings.criticalAt} onChange={(criticalAt) => update({ criticalAt })} />
-        </fieldset>
-
-        <fieldset className="field" disabled={!settings.enabled}>
-          <legend>Refresh every</legend>
-          <div className="segmented inline">
-            {REFRESH_OPTIONS.map((m) => (
-              <button key={m} className={settings.refreshMinutes === m ? "active" : ""} onClick={() => update({ refreshMinutes: m })}>
-                {m < 60 ? `${m} min` : "1 h"}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-
-        {disk && settings.enabled && (
-          <div className="field">
-            <span className="field-label">Preview</span>
-            <div className="previews">
-              <Preview disk={disk} settings={settings} usedPercent={usedPercent} caption={`Now · ${usedPercent.toFixed(0)}%`} />
-              <Preview disk={disk} settings={settings} usedPercent={Math.max(settings.warnAt, 85)} caption="Getting full" />
-              <Preview disk={disk} settings={settings} usedPercent={Math.max(settings.criticalAt, 95)} caption="Almost full" />
+        <div className={`modal-body ${s.enabled ? "" : "off"}`}>
+          <section>
+            <h3 className="eyebrow">Icon</h3>
+            <div className="cards four">
+              {ICONS.map((o) => (
+                <button key={o.id} className={`pick icon-pick ${s.icon === o.id ? "on" : ""}`} onClick={() => update({ icon: o.id })}>
+                  <span className="glyph-slot">
+                    <MenuBarGlyph style={o.id} percent={58} level="normal" />
+                  </span>
+                  <span className="pick-label">{o.label}</span>
+                </button>
+              ))}
             </div>
-          </div>
-        )}
+          </section>
+
+          <section>
+            <h3 className="eyebrow">Text next to the icon</h3>
+            <div className="cards four">
+              {TEXTS.map((o) => (
+                <button key={o.id} className={`pick ${s.text === o.id ? "on" : ""}`} onClick={() => update({ text: o.id })}>
+                  <span>{o.label}</span>
+                  <span className="mono muted">
+                    {o.id === "none" ? "—" : disk ? label(o.id, disk, now) + (o.id === "free" ? " free" : "") : ""}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <h3 className="eyebrow">Colors</h3>
+            <Threshold style={s.icon} level="warning" label="Turn amber at" value={s.warnAt} min={50} max={98} onChange={(warnAt) => update({ warnAt })} />
+            <Threshold style={s.icon} level="critical" label="Turn coral at" value={s.criticalAt} min={60} max={99} onChange={(criticalAt) => update({ criticalAt })} />
+            <p className="muted small">Below the amber level the icon stays monochrome, like other menu bar icons.</p>
+          </section>
+
+          <section>
+            <h3 className="eyebrow">Refresh every</h3>
+            <div className="segmented inline">
+              {REFRESH.map((m) => (
+                <button key={m} className={s.refreshMinutes === m ? "active" : ""} onClick={() => update({ refreshMinutes: m })}>
+                  {m < 60 ? `${m} min` : "1 h"}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <h3 className="eyebrow">Preview</h3>
+            <div className="previews">
+              {[
+                [now, `Now · ${now.toFixed(0)}%`],
+                [getting, "Getting full"],
+                [almost, "Almost full"],
+              ].map(([p, caption]) => {
+                const d = at(p as number);
+                const text = d ? label(s.text, d, p as number) : "";
+                return (
+                  <figure key={caption as string} className="preview">
+                    <div className="menubar-strip">
+                      <span>Wi-Fi</span>
+                      <span className="menubar-item">
+                        <MenuBarGlyph style={s.icon} percent={p as number} level={levelOf(p as number, s)} />
+                        {text && <span className="mono">{text}</span>}
+                      </span>
+                      <span className="clock">Tue 14:32</span>
+                    </div>
+                    <figcaption>{caption}</figcaption>
+                  </figure>
+                );
+              })}
+            </div>
+          </section>
+        </div>
 
         {error && <p className="error">{error}</p>}
       </section>
@@ -167,13 +220,15 @@ export function MenuBarSettingsPanel({ initial, disk, onClose, onSaved }: Props)
   );
 }
 
-function Threshold({ label, state, value, onChange }: { label: string; state: string; value: number; onChange: (v: number) => void }) {
+function Threshold(props: { style: MenuBarIcon; level: Level; label: string; value: number; min: number; max: number; onChange: (v: number) => void }) {
   return (
-    <label className="threshold">
-      <Gauge fraction={value / 100} state={state} />
-      <span>{label}</span>
-      <input type="range" min={50} max={99} value={value} onChange={(e) => onChange(Number(e.target.value))} />
-      <strong>{value}%</strong>
+    <label className={`threshold ${props.level}`}>
+      <span className="glyph-slot">
+        <MenuBarGlyph style={props.style} percent={props.level === "critical" ? 99 : props.value} level={props.level} />
+      </span>
+      <span>{props.label}</span>
+      <input type="range" min={props.min} max={props.max} value={props.value} onChange={(e) => props.onChange(Number(e.target.value))} />
+      <strong className="mono">{props.value}%</strong>
     </label>
   );
 }

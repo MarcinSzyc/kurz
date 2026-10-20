@@ -50,7 +50,7 @@ pub fn label(text: MenuBarText, disk: &DiskInfo) -> Option<String> {
         }
         MenuBarText::Free => {
             let (free, unit) = short(disk.available);
-            Some(format!("{} {unit} free", num(free)))
+            Some(format!("{} {unit}", num(free)))
         }
         MenuBarText::None => None,
     }
@@ -73,7 +73,7 @@ impl MenuBar {
         let menu = Menu::with_items(app, &[&info, &separator()?, &open, &configure, &separator()?, &quit])?;
 
         let tray = TrayIconBuilder::with_id(TRAY_ID)
-            .icon(Image::new_owned(gauge::render(0.0, Level::Normal), gauge::SIZE, gauge::SIZE))
+            .icon(icon_image(gauge::render(settings.icon, 0.0, Level::Normal)))
             .icon_as_template(true)
             .menu(&menu)
             .show_menu_on_left_click(true)
@@ -117,9 +117,10 @@ impl MenuBar {
         }
         let used_percent = disk.used as f64 / disk.total as f64 * 100.0;
         let level = Level::of(used_percent, settings.warn_at, settings.critical_at);
-        let icon = Image::new_owned(gauge::render(used_percent / 100.0, level), gauge::SIZE, gauge::SIZE);
+        let icon = gauge::render(settings.icon, used_percent, level);
+        let template = icon.template;
 
-        let _ = self.tray.set_icon_with_as_template(Some(icon), level.is_template());
+        let _ = self.tray.set_icon_with_as_template(Some(icon_image(icon)), template);
         let _ = self.tray.set_title(label(settings.text, &disk));
         let _ = self.tray.set_tooltip(Some(summary(&disk)));
         let _ = self.info.set_text(summary(&disk));
@@ -140,6 +141,10 @@ impl MenuBar {
             }
         });
     }
+}
+
+fn icon_image(icon: gauge::Icon) -> Image<'static> {
+    Image::new_owned(icon.rgba, icon.width, icon.height)
 }
 
 pub fn show_main_window(app: &AppHandle) {
@@ -163,7 +168,7 @@ mod tests {
         let d = disk(382_400_000_000, 994_700_000_000);
         assert_eq!(label(MenuBarText::PercentUsed, &d).unwrap(), "38%");
         assert_eq!(label(MenuBarText::UsedOfTotal, &d).unwrap(), "382/995 GB");
-        assert_eq!(label(MenuBarText::Free, &d).unwrap(), "612 GB free");
+        assert_eq!(label(MenuBarText::Free, &d).unwrap(), "612 GB");
         assert_eq!(label(MenuBarText::None, &d), None);
     }
 
@@ -171,6 +176,6 @@ mod tests {
     fn uses_terabytes_for_big_disks() {
         let d = disk(1_500_000_000_000, 2_000_000_000_000);
         assert_eq!(label(MenuBarText::UsedOfTotal, &d).unwrap(), "1.5/2.0 TB");
-        assert_eq!(label(MenuBarText::Free, &d).unwrap(), "500 GB free");
+        assert_eq!(label(MenuBarText::Free, &d).unwrap(), "500 GB");
     }
 }

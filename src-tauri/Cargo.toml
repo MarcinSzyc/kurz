@@ -26,6 +26,7 @@ rayon = "1.12.0"
 libc = "0.2.191"
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSFileManager", "NSURL", "NSString", "NSError"] }
 objc2 = "0.6"
+png = "0.18"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

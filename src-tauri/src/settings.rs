@@ -6,6 +6,8 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::gauge::Style;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum MenuBarText {
@@ -13,7 +15,7 @@ pub enum MenuBarText {
     PercentUsed,
     /// "382/994 GB"
     UsedOfTotal,
-    /// "612 GB free"
+    /// "612 GB"
     Free,
     /// Gauge only.
     None,
@@ -23,17 +25,18 @@ pub enum MenuBarText {
 #[serde(rename_all = "camelCase", default)]
 pub struct MenuBarSettings {
     pub enabled: bool,
+    pub icon: Style,
     pub text: MenuBarText,
-    /// Percent of the disk used at which the gauge turns orange.
+    /// Percent of the disk used at which the icon turns amber.
     pub warn_at: u8,
-    /// Percent of the disk used at which the gauge turns red.
+    /// Percent of the disk used at which the icon turns coral.
     pub critical_at: u8,
     pub refresh_minutes: u32,
 }
 
 impl Default for MenuBarSettings {
     fn default() -> Self {
-        Self { enabled: true, text: MenuBarText::PercentUsed, warn_at: 80, critical_at: 90, refresh_minutes: 5 }
+        Self { enabled: true, icon: Style::Tank, text: MenuBarText::Free, warn_at: 80, critical_at: 95, refresh_minutes: 5 }
     }
 }
 
@@ -105,7 +108,7 @@ mod tests {
         let menu_bar = load(&path).menu_bar;
 
         assert_eq!(menu_bar.warn_at, 75);
-        assert_eq!(menu_bar.critical_at, 90);
+        assert_eq!(menu_bar.critical_at, 95);
         assert!(menu_bar.enabled);
     }
 

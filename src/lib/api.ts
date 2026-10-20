@@ -54,8 +54,11 @@ export const diskInfo = (path: string) => invoke<DiskInfo>("disk_info", { path }
 
 export type MenuBarText = "percentUsed" | "usedOfTotal" | "free" | "none";
 
+export type MenuBarIcon = "bar" | "tank" | "slabs" | "sprite";
+
 export interface MenuBarSettings {
   enabled: boolean;
+  icon: MenuBarIcon;
   text: MenuBarText;
   warnAt: number;
   criticalAt: number;
