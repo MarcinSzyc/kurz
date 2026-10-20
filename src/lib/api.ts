@@ -147,3 +147,7 @@ export const getHistory = () => invoke<HistoryData>("get_history");
 export const onCleanupProgress = (cb: (p: { done: number; total: number; current: string }) => void): Promise<UnlistenFn> =>
   listen<{ done: number; total: number; current: string }>("cleanup-progress", (e) => cb(e.payload));
 export const purgeCleanup = (id: string) => invoke<{ path: string; error: string }[]>("purge_cleanup", { id });
+
+export const fullDiskAccess = () => invoke<boolean>("full_disk_access");
+export const openFullDiskAccessSettings = () => invoke<void>("open_full_disk_access_settings");
+export const relaunch = () => invoke<void>("relaunch");

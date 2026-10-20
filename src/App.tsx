@@ -4,6 +4,7 @@ import {
   cancelScan,
   cleanUp,
   diskInfo,
+  fullDiskAccess,
   getMenuBarSettings,
   getRecommendations,
   getTree,
@@ -32,6 +33,7 @@ import { Tray } from "./components/Tray";
 import { MenuBarSettingsPanel } from "./components/MenuBarSettings";
 import { HowItWorks } from "./components/HowItWorks";
 import { HistoryView } from "./components/HistoryView";
+import { FullDiskAccess } from "./components/FullDiskAccess";
 import { MoreMenu, ThemeToggle, type Theme } from "./components/HeaderMenu";
 import icon from "./assets/icon.png";
 import "./fonts.css";
@@ -72,6 +74,10 @@ function App() {
   const [menuBar, setMenuBar] = useState<MenuBarSettings | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
+  /** null until checked; the start screen asks for it once, the banner after a scan. */
+  const [fda, setFda] = useState<boolean | null>(null);
+  const [fdaSkipped, setFdaSkipped] = useState(false);
+  const [fdaOpen, setFdaOpen] = useState(false);
   const [page, setPage] = useState<Page>("cleanup");
   const [theme, setTheme] = useState<Theme>(storedTheme);
 
@@ -128,6 +134,7 @@ function App() {
       refreshDisk(h);
     }, fail);
     getMenuBarSettings().then(setMenuBar, fail);
+    fullDiskAccess().then(setFda, () => setFda(false));
     const unlisten = [
       onOpenSettings(() => setSettingsOpen(true)),
       onScanProgress(setProgress),
@@ -311,6 +318,15 @@ function App() {
         </div>
       </header>
 
+      {fda === false && scanned && status === "done" && (progress?.errors ?? 0) > 0 && (
+        <div className="banner">
+          <span>
+            {progress!.errors.toLocaleString("en-US")} folders couldn't be read. Give Kurz Full Disk Access to see everything in ~/Library.
+          </span>
+          <button onClick={() => setFdaOpen(true)}>Set up</button>
+        </div>
+      )}
+
       {error && (
         <p className="error" onClick={() => setError(null)}>
           {error}
@@ -328,6 +344,8 @@ function App() {
             }
           }}
         />
+      ) : fda === false && !fdaSkipped && !scanned && status !== "scanning" ? (
+        <FullDiskAccess onSkip={() => setFdaSkipped(true)} />
       ) : status === "scanning" || !scanned ? (
         <ScanState status={status} progress={progress} cancelled={!!done?.cancelled} onScan={scan} canScan={!!home} />
       ) : page === "cleanup" ? (
@@ -348,6 +366,15 @@ function App() {
         <MapView node={node} root={done.root} items={items} tray={tray} onOpen={open} onToggleFolder={toggleFolder} trayPanel={trayPanel(false)} />
       ) : null}
 
+      {fdaOpen && (
+        <FullDiskAccess
+          modal
+          onSkip={() => {
+            setFdaOpen(false);
+            fullDiskAccess().then(setFda, () => {});
+          }}
+        />
+      )}
       {howOpen && <HowItWorks onClose={() => setHowOpen(false)} />}
       {settingsOpen && menuBar && (
         <MenuBarSettingsPanel initial={menuBar} disk={disk} onClose={() => setSettingsOpen(false)} onSaved={setMenuBar} />

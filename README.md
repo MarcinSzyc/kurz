@@ -30,7 +30,7 @@ Kurz scans your home folder, builds a size tree of every file and folder, sugges
 | **History** screen: space reclaimed, how fast the disk fills, a 30/90-day free space chart with cleanups marked, past cleanups with per-item restore from the Trash, folders that keep growing back | ✅ done |
 | macOS menu bar gauge: four icon styles (Bar, Tank, Slabs, Sprite), configurable text, amber and coral past thresholds (80% and 95% by default) | ✅ done |
 | **How it works** (from the ••• menu): scanning, categories, recommendation rules, protected places and removal, rendered from the same rules the app uses | ✅ done |
-| Full Disk Access onboarding | 📋 planned |
+| Full Disk Access screen: checks whether Kurz has it, opens the right System Settings pane, Quit & Reopen; a banner after a scan with unreadable folders | ✅ done |
 | Weekly auto-clean of folders that keep growing back | 📋 planned |
 | A ready-made shell script instead of removing from the app | 📋 planned |
 | Preferences, Check for updates (greyed out in the ••• menu) | 📋 planned |
@@ -253,6 +253,8 @@ With the menu bar item on, closing the window only hides it and Kurz keeps runni
 
 On the first scan macOS asks for access to Desktop, Documents and Downloads. To scan everything, including app data in `~/Library`, give Kurz Full Disk Access: **System Settings → Privacy & Security → Full Disk Access**. Without it some folders show up as unreadable.
 
+Kurz walks you through it: before the first scan, and from a banner when a scan found unreadable folders, it opens that pane for you and offers **Quit & Reopen**, since macOS applies the change only after a restart. To tell whether access is on, Kurz tries to open the macOS privacy database (`~/Library/Application Support/com.apple.TCC/TCC.db`), which only apps with Full Disk Access may open; it never reads or changes it.
+
 ## Project structure
 
 ```
@@ -260,7 +262,7 @@ kurz/
 ├── src/                    # UI (React + TypeScript)
 │   ├── App.tsx             # header, tabs, shared tray state
 │   ├── components/         # CleanUp, MapView, HistoryView, Tray, HeaderMenu,
-│   │                       # MenuBarSettings, HowItWorks
+│   │                       # MenuBarSettings, HowItWorks, FullDiskAccess
 │   ├── lib/                # calls into Rust, the tray model, formatting
 │   └── assets/             # app icon, Geist fonts (SIL OFL)
 ├── src-tauri/              # core (Rust)
@@ -274,6 +276,7 @@ kurz/
 │   ├── src/menubar.rs      # the menu bar item
 │   ├── src/gauge.rs        # drawing the menu bar icon
 │   ├── src/disk.rs         # volume capacity
+│   ├── src/access.rs       # Full Disk Access check, System Settings pane
 │   ├── src/settings.rs     # settings (JSON)
 │   ├── src/lib.rs          # Tauri commands and events
 │   ├── examples/scan.rs    # command-line benchmark

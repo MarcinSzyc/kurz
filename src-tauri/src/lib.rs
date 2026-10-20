@@ -1,4 +1,5 @@
 mod about;
+mod access;
 mod categories;
 pub mod cleanup;
 mod disk;
@@ -518,6 +519,22 @@ fn purge_cleanup(app: AppHandle, id: String) -> Result<Vec<Failure>, String> {
 
 /// The history, with each trashed item checked for whether it's still in the Trash.
 #[tauri::command]
+fn full_disk_access(app: AppHandle) -> Result<bool, String> {
+    Ok(access::has_full_disk_access(&app.path().home_dir().map_err(|e| e.to_string())?))
+}
+
+#[tauri::command]
+fn open_full_disk_access_settings() -> Result<(), String> {
+    access::open_settings().map_err(|e| e.to_string())
+}
+
+/// macOS applies a new Full Disk Access grant only after the app restarts.
+#[tauri::command]
+fn relaunch(app: AppHandle) {
+    app.restart();
+}
+
+#[tauri::command]
 fn get_history(app: AppHandle) -> Result<history::History, String> {
     let mut all = history::load(&history_path(&app)?);
     for removed in all.cleanups.iter_mut().flat_map(|c| c.items.iter_mut()).flat_map(|i| i.paths.iter_mut()) {
@@ -561,6 +578,9 @@ pub fn run() {
             restore_cleanup,
             purge_cleanup,
             get_history,
+            full_disk_access,
+            open_full_disk_access_settings,
+            relaunch,
             set_menu_bar_settings
         ])
         .build(tauri::generate_context!())

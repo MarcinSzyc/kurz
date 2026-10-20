@@ -2578,3 +2578,121 @@ button.link.strong {
 .sheet-note {
   margin: 14px 26px 0;
 }
+
+/* ───── Full Disk Access ───── */
+
+.fda-page {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  flex: 1;
+  overflow-y: auto;
+  padding-top: 24px;
+}
+
+.fda {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(560px, 100%);
+  padding: 32px 32px 24px;
+  text-align: center;
+}
+
+.fda.in-modal {
+  border-radius: 18px;
+  box-shadow: 0 30px 80px rgb(0 0 0 / 0.3);
+}
+
+.fda-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+}
+
+.fda h2 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.fda .sub {
+  font-size: 13.5px;
+}
+
+.fda-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.fda-steps li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.fda-steps li > .mono {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 26px;
+  text-align: center;
+}
+
+.fda-steps li > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13.5px;
+}
+
+.fda-steps li .muted {
+  font-size: 12.5px;
+}
+
+.fda-steps button {
+  flex: none;
+  font-size: 13px;
+}
+
+.fda-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 13px;
+}
+
+.banner button {
+  flex: none;
+  padding: 5px 12px;
+  font-size: 12.5px;
+}
