@@ -105,12 +105,12 @@ function App() {
 
   const [items, setItems] = useState<Recommendation[]>([]);
   const [goal, setGoal] = useState(0);
-  const [selection, setSelection] = useState<string[] | null>(null);
+  /** Ids of the recommendations in the tray. Only ever filled by the user, never on its own. */
+  const [selection, setSelection] = useState<string[]>([]);
   /** Folders added from the Map, sharing the tray with the recommendations. */
   const [folders, setFolders] = useState<TrayEntry[]>([]);
   const [cleaning, setCleaning] = useState<{ done: number; total: number } | null>(null);
   const [report, setReport] = useState<CleanReport | null>(null);
-  const goalSet = useRef(false);
   /** When the scan on screen was made (Unix seconds), from this session or the last one. */
   const [scannedAt, setScannedAt] = useState<number | null>(null);
 
@@ -127,12 +127,6 @@ function App() {
   async function refreshRecommendations() {
     const next = await getRecommendations();
     setItems(next);
-    // Start with the safe group in the tray; after that the goal is the user's.
-    if (!goalSet.current) {
-      // Rounded down, so the default picks only safe items.
-      setGoal(Math.floor(sizeOf(next, "safe") / GB));
-      goalSet.current = true;
-    }
     return next;
   }
 
@@ -301,7 +295,7 @@ function App() {
     });
     if (failed.length) setError(`Couldn't restore: ${failed.map((f) => `${f.path} (${f.error})`).join(", ")}`);
     setReport(null);
-    setSelection(null);
+    setSelection([]);
     await sync();
   }
 
@@ -322,7 +316,7 @@ function App() {
 
   // The tray: recommendations picked by the goal or by hand, plus folders from the Map.
   // A recommendation inside a picked folder is left out so nothing counts twice.
-  const selected = selection ?? autoPick(items, goal * GB);
+  const selected = selection;
   const hasDockerItems = folders.some((f) => f.docker);
   const recEntries = items
     // Docker's disk image as a whole and pieces of it never both: the pieces win.
@@ -413,7 +407,7 @@ function App() {
       onPurge={purge}
       onDismiss={() => {
         setReport(null);
-        setSelection(null);
+        setSelection([]);
       }}
     />
   );
@@ -510,8 +504,9 @@ function App() {
           goal={goal}
           maxGb={maxGb}
           onGoal={(g) => {
+            // Moving the slider is the user asking for this much: pick it once, then it's a plain list.
             setGoal(g);
-            setSelection(null);
+            setSelection(autoPick(items, g * GB));
           }}
           onToggle={toggleRec}
           onSetMany={setMany}

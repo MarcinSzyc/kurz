@@ -28,7 +28,7 @@ Kurz scans your home folder, builds a size tree of every file and folder, sugges
 | Opens with the last scan right away ("scanned 3 h ago"); a new scan runs while the old one stays on screen | ✅ done |
 | Header disk bar: free space and usage | ✅ done |
 | Light and dark themes: follows macOS by default; sun/moon toggle in the header, Light / Dark / Auto in the ••• menu | ✅ done |
-| **Clean up** screen: an "I need X GB" goal fills the tray with the safest items first; three groups: *Safe to delete*, *Rebuildable*, *Take a look*; when each item last changed | ✅ done |
+| **Clean up** screen: the tray starts empty and only you fill it; moving the "I need X GB" goal picks the safest items first; three groups: *Safe to delete*, *Rebuildable*, *Take a look*; when each item last changed | ✅ done |
 | "What is this?" under each item: the owning app, found locally through macOS (its name, whether it's installed and running), notes for opaque folders (e.g. `*.ShipIt` update files, the TypeScript cache); "Quit … first" and "App not installed" tags | ✅ done |
 | What's inside Docker, under its row in Clean up: build cache, images, stopped containers and volumes (with their compose project), each removable on its own through Docker; in-use ones are kept | ✅ done |
 | Cleaning that asks every time: to the Trash or permanently; Undo; "Empty from Trash" deletes only that cleanup's items | ✅ done |
