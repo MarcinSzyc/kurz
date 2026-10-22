@@ -518,6 +518,7 @@ fn run_cleanup(app: &AppHandle, items: Vec<CleanRequest>, mode: cleanup::Mode) -
         .collect();
     if !cleaned.is_empty() {
         save_scan(app);
+        app.state::<MenuBar>().refresh_soon();
     }
     let cleanup = (!cleaned.is_empty()).then(|| history::Cleanup {
         id: format!("{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()),
@@ -577,7 +578,10 @@ fn restore_cleanup(app: AppHandle, state: State<AppState>, id: String, paths: Op
         Ok(failed)
     })
     .map_err(|e| e.to_string())
-    .inspect(|_| save_scan(&app))?
+    .inspect(|_| {
+        save_scan(&app);
+        app.state::<MenuBar>().refresh_soon();
+    })?
 }
 
 /// Deletes for good the items a cleanup moved to the Trash, freeing their space.
@@ -606,7 +610,8 @@ fn purge_cleanup(app: AppHandle, id: String) -> Result<Vec<Failure>, String> {
         }
         Ok(failed)
     })
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
+    .inspect(|_| app.state::<MenuBar>().refresh_soon())?
 }
 
 /// The history, with each trashed item checked for whether it's still in the Trash.
@@ -677,6 +682,7 @@ fn run_docker_cleanup(app: &AppHandle, items: Vec<DockerRequest>) -> Result<Clea
     });
     if let Some(c) = &cleanup {
         history::update(&history_path(app)?, |h| h.cleanups.push(c.clone())).map_err(|e| e.to_string())?;
+        MenuBar::refresh_after(app, &[Duration::from_secs(60), Duration::from_secs(300)]);
     }
     Ok(CleanReport { freed: cleanup.as_ref().map_or(0, |c| c.freed()), cleanup, failed })
 }

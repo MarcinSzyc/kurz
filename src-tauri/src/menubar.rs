@@ -95,6 +95,25 @@ impl MenuBar {
         self.settings.lock().unwrap().clone()
     }
 
+    /// Redraws on the next tick, e.g. right after a cleanup changed the free space.
+    pub fn refresh_soon(&self) {
+        self.dirty.store(true, Ordering::Relaxed);
+    }
+
+    /// Redraws now and again after each delay: Docker hands freed space back to macOS slowly.
+    pub fn refresh_after(app: &AppHandle, delays: &[Duration]) {
+        app.state::<MenuBar>().refresh_soon();
+        let (app, delays) = (app.clone(), delays.to_vec());
+        thread::spawn(move || {
+            let mut waited = Duration::ZERO;
+            for delay in delays {
+                thread::sleep(delay - waited);
+                waited = delay;
+                app.state::<MenuBar>().refresh_soon();
+            }
+        });
+    }
+
     pub fn apply(&self, settings: MenuBarSettings) {
         *self.settings.lock().unwrap() = settings;
         self.dirty.store(true, Ordering::Relaxed);
