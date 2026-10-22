@@ -242,6 +242,23 @@ function App() {
     }
   }
 
+  /** Bumped after every change on disk, so screens that load their own data (History) reload. */
+  const [syncs, setSyncs] = useState(0);
+
+  /**
+   * Brings every screen up to date after anything was removed, restored or emptied from the Trash:
+   * recommendations, the map, the disk bar, installed apps, Docker and History.
+   */
+  async function sync() {
+    if (home) refreshDisk(home);
+    setAppsReport(null);
+    setDocker(null);
+    setDockerVols(null);
+    setSyncs((n) => n + 1);
+    if (node) open(node.path);
+    await refreshRecommendations().catch(fail);
+  }
+
   async function clean(chosen: TrayEntry[], mode: CleanMode) {
     const files = chosen.filter((e) => !e.docker);
     const dockerItems = chosen.filter((e) => e.docker);
@@ -265,16 +282,9 @@ function App() {
         cleanup: cleanups.length ? { ...cleanups[0], items: cleanups.flatMap((c) => c.items) } : null,
       };
       setReport(result);
-      if (dockerItems.length) {
-        setDocker(null);
-        setDockerVols(null);
-      }
       setSelection([]);
       setFolders([]);
-      if (chosen.some((e) => e.key.startsWith("app:") || e.key.startsWith("left:"))) setAppsReport(null);
-      await refreshRecommendations();
-      if (home) refreshDisk(home);
-      if (node) open(node.path);
+      await sync();
     } catch (e) {
       fail(e);
     } finally {
@@ -292,9 +302,7 @@ function App() {
     if (failed.length) setError(`Couldn't restore: ${failed.map((f) => `${f.path} (${f.error})`).join(", ")}`);
     setReport(null);
     setSelection(null);
-    await refreshRecommendations().catch(fail);
-    if (home) refreshDisk(home);
-    if (node) open(node.path);
+    await sync();
   }
 
   async function purge() {
@@ -309,7 +317,7 @@ function App() {
       ...report,
       cleanup: { ...cleanup, items: cleanup.items.map((i) => ({ ...i, paths: i.paths.map((p) => ({ ...p, trashed: null })) })) },
     });
-    if (home) refreshDisk(home);
+    await sync();
   }
 
   // The tray: recommendations picked by the goal or by hand, plus folders from the Map.
@@ -480,16 +488,7 @@ function App() {
       )}
 
       {page === "history" ? (
-        <HistoryView
-          onError={fail}
-          onChanged={() => {
-            if (home) refreshDisk(home);
-            if (scanned) {
-              refreshRecommendations().catch(fail);
-              if (node) open(node.path);
-            }
-          }}
-        />
+        <HistoryView key={syncs} onError={fail} onChanged={() => sync()} />
       ) : fda === false && !fdaSkipped && !scanned && status !== "scanning" ? (
         <FullDiskAccess onSkip={() => setFdaSkipped(true)} />
       ) : page === "apps" ? (
