@@ -5,6 +5,7 @@ pub mod cache;
 mod categories;
 pub mod cleanup;
 mod disk;
+mod docker;
 mod gauge;
 mod history;
 mod menubar;
@@ -631,6 +632,62 @@ async fn list_apps(app: AppHandle) -> Result<apps::AppsReport, String> {
     .map_err(|e| e.to_string())
 }
 
+/// What's inside Docker, read from the Docker API in the background.
+#[tauri::command]
+async fn docker_report(app: AppHandle) -> Result<docker::Report, String> {
+    let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || docker::report(&home)).await.map_err(|e| e.to_string())?
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DockerRequest {
+    kind: docker::Kind,
+    id: String,
+    label: String,
+    size: u64,
+}
+
+fn run_docker_cleanup(app: &AppHandle, items: Vec<DockerRequest>) -> Result<CleanReport, String> {
+    let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    let total = items.len();
+    let (mut failed, mut cleaned) = (Vec::new(), Vec::new());
+    for (done, item) in items.into_iter().enumerate() {
+        let _ = app.emit("cleanup-progress", CleanProgress { done, total, current: item.label.clone() });
+        match docker::remove(&home, item.kind, &item.id) {
+            Ok(reclaimed) => cleaned.push(history::CleanedItem {
+                size: reclaimed.unwrap_or(item.size),
+                paths: vec![history::Removed {
+                    original: format!("docker:{}", item.id),
+                    trashed: None,
+                    restored: false,
+                    in_trash: false,
+                }],
+                label: item.label,
+            }),
+            Err(error) => failed.push(Failure { path: item.label, error }),
+        }
+    }
+    let cleanup = (!cleaned.is_empty()).then(|| history::Cleanup {
+        id: format!("{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()),
+        at: now(),
+        // Docker removes for good; there's no Trash for images or volumes.
+        mode: cleanup::Mode::Delete,
+        items: cleaned,
+    });
+    if let Some(c) = &cleanup {
+        history::update(&history_path(app)?, |h| h.cleanups.push(c.clone())).map_err(|e| e.to_string())?;
+    }
+    Ok(CleanReport { freed: cleanup.as_ref().map_or(0, |c| c.freed()), cleanup, failed })
+}
+
+/// Removes images, containers, volumes or the build cache through Docker, one at a time.
+#[tauri::command]
+async fn docker_remove(app: AppHandle, items: Vec<DockerRequest>) -> Result<CleanReport, String> {
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || run_docker_cleanup(&handle, items)).await.map_err(|e| e.to_string())?
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ScanInfo {
@@ -734,6 +791,8 @@ pub fn run() {
             full_disk_access,
             list_apps,
             scan_info,
+            docker_report,
+            docker_remove,
             open_full_disk_access_settings,
             relaunch,
             set_menu_bar_settings

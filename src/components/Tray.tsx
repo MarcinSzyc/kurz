@@ -33,6 +33,8 @@ export function Tray(props: TrayProps) {
   const own = entries.filter((e) => e.risk === "takeALook");
   const cleanup = report?.cleanup ?? null;
   const inTrash = cleanup?.mode === "trash" && cleanup.items.some((i) => i.paths.some((p) => p.trashed && !p.restored));
+  // What waits in the Trash; Docker frees its part right away.
+  const trashed = cleanup ? cleanup.items.filter((i) => !i.paths.every((p) => p.original.startsWith("docker:"))).reduce((s, i) => s + i.size, 0) : 0;
 
   if (cleanup && report) {
     return (
@@ -67,7 +69,10 @@ export function Tray(props: TrayProps) {
         <div className="note ok">
           {cleanup.mode === "trash" && inTrash ? (
             <>
-              <span>Moved to Trash · frees {formatBytes(report.freed)} once emptied</span>
+              <span>
+                Moved to Trash · frees {formatBytes(trashed)} once emptied
+                {report.freed - trashed > 0 ? ` · ${formatBytes(report.freed - trashed)} freed by Docker` : ""}
+              </span>
               <button className="link strong" onClick={props.onUndo}>
                 Undo
               </button>
@@ -255,6 +260,12 @@ function ConfirmSheet({
             );
           })}
         </div>
+        {entries.some((e) => e.docker) && (
+          <p className="note warn sheet-note">
+            Docker removes {entries.filter((e) => e.docker).length === 1 ? "its item" : `its ${entries.filter((e) => e.docker).length} items`} for good, whichever
+            option you pick: no Trash, no Undo. Docker Desktop gives the space back to macOS over a few minutes.
+          </p>
+        )}
         {entries.some((e) => e.quitsApp) && (
           <p className="note warn sheet-note">Kurz will ask {entries.flatMap((e) => (e.quitsApp ? [e.quitsApp] : [])).join(", ")} to quit first.</p>
         )}

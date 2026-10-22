@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { InstalledApp, Recommendation, Risk, TreeNode } from "./api";
-import { GB, addEntry, ago, autoPick, covers, fromApp, fromFolder, fromLeftover, fromRecommendation, items, riskOfFolder } from "./tray";
+import { GB, addEntry, ago, autoPick, covers, fromApp, fromDocker, fromFolder, fromLeftover, fromRecommendation, items, riskOfFolder } from "./tray";
 
 const rec = (id: string, risk: Risk, gb: number, path = `/Users/me/${id}`): Recommendation => ({
   id,
@@ -158,5 +158,31 @@ describe("labels", () => {
     expect(ago(now - 21 * 86_400, now)).toBe("3 wk ago");
     expect(ago(now - 120 * 86_400, now)).toBe("4 mo ago");
     expect(ago(now - 500 * 86_400, now)).toBe("1.4 yr ago");
+  });
+});
+
+describe("fromDocker", () => {
+  const item = (kind: "image" | "container" | "volume" | "buildCache") => ({
+    kind,
+    id: "x1",
+    name: "n",
+    detail: "d",
+    size: 5,
+    created: 0,
+    inUse: false,
+    project: "shop",
+  });
+
+  it("rates volumes as possibly your data, build cache as safe", () => {
+    expect(fromDocker(item("buildCache")).risk).toBe("safe");
+    expect(fromDocker(item("image")).risk).toBe("rebuildable");
+    expect(fromDocker(item("volume")).risk).toBe("takeALook");
+    expect(fromDocker(item("volume")).location).toBe("d · shop");
+  });
+
+  it("is never pushed out of the tray by a folder", () => {
+    const vol = fromDocker(item("volume"));
+    const folder = fromFolder(node("/Users/me/Library", "system"), "/Users/me", []);
+    expect(addEntry([vol], [], [], folder).extras.map((e) => e.key)).toEqual([vol.key, folder.key]);
   });
 });

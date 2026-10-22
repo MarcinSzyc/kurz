@@ -1,4 +1,4 @@
-import type { Category, InstalledApp, Leftover, Recommendation, Risk, TreeNode } from "./api";
+import type { Category, DockerItem, InstalledApp, Leftover, Recommendation, Risk, TreeNode } from "./api";
 
 export const GB = 1e9;
 
@@ -79,6 +79,8 @@ export interface TrayEntry {
   note?: string;
   /** Kurz asks this app to quit itself before removing it. */
   quitsApp?: string;
+  /** Removed through Docker rather than as files. */
+  docker?: { kind: DockerItem["kind"]; id: string };
 }
 
 export const fromRecommendation = (r: Recommendation): TrayEntry => ({
@@ -175,7 +177,22 @@ export const items = (n: number) => `${n} ${n === 1 ? "item" : "items"}`;
  */
 export function addEntry(extras: TrayEntry[], selected: string[], items: Recommendation[], entry: TrayEntry) {
   return {
-    extras: [...extras.filter((e) => !e.paths.every((p) => covers(entry, p))), entry],
+    // Docker items have no paths, so a folder never contains them.
+    extras: [...extras.filter((e) => e.paths.length === 0 || !e.paths.every((p) => covers(entry, p))), entry],
     selected: selected.filter((id) => !items.find((i) => i.id === id)?.paths.every((p) => covers(entry, p))),
   };
 }
+
+const DOCKER_RISK: Record<DockerItem["kind"], Risk> = { buildCache: "safe", image: "rebuildable", container: "rebuildable", volume: "takeALook" };
+
+/** An image, container, volume or the build cache, removed through Docker. */
+export const fromDocker = (item: DockerItem): TrayEntry => ({
+  key: `docker:${item.kind}:${item.id}`,
+  label: item.name,
+  location: item.project ? `${item.detail} · ${item.project}` : item.detail,
+  paths: [],
+  size: item.size,
+  risk: DOCKER_RISK[item.kind],
+  category: "system",
+  docker: { kind: item.kind, id: item.id },
+});

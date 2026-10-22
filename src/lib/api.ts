@@ -206,3 +206,27 @@ export interface ScanInfo {
 
 export const scanInfo = () => invoke<ScanInfo | null>("scan_info");
 export const onScanLoaded = (cb: () => void): Promise<UnlistenFn> => listen("scan-loaded", () => cb());
+
+export type DockerKind = "image" | "container" | "volume" | "buildCache";
+
+export interface DockerItem {
+  kind: DockerKind;
+  id: string;
+  name: string;
+  detail: string;
+  size: number;
+  created: number;
+  inUse: boolean;
+  project: string | null;
+}
+
+export interface DockerReport {
+  images: DockerItem[];
+  containers: DockerItem[];
+  volumes: DockerItem[];
+  buildCache: DockerItem | null;
+}
+
+export const dockerReport = () => invoke<DockerReport>("docker_report");
+export const dockerRemove = (items: { kind: DockerKind; id: string; label: string; size: number }[]) =>
+  invoke<CleanReport>("docker_remove", { items });

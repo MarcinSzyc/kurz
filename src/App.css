@@ -3254,3 +3254,71 @@ button.link.strong {
 .scan-age {
   white-space: nowrap;
 }
+
+/* ───── Docker breakdown ───── */
+
+.inside-toggle {
+  align-self: flex-start;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--good);
+}
+
+.rec-inside {
+  grid-column: 1 / -1;
+}
+
+.docker-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 6px 0 4px 24px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.docker-note {
+  margin: 0;
+}
+
+.docker-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.docker-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 6px;
+  font-size: 13.5px;
+}
+
+.docker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px 80px 92px;
+  gap: 14px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.docker-row.on {
+  background: var(--row-on);
+}
+
+.docker-row .rec-name .mono {
+  font-size: 12.5px;
+}
+
+.show-all {
+  align-self: flex-start;
+  padding: 6px 0 0;
+}
+
+.docker-locked {
+  margin: 6px 0 0;
+}

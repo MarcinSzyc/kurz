@@ -30,6 +30,7 @@ Kurz scans your home folder, builds a size tree of every file and folder, sugges
 | Light and dark themes: follows macOS by default; sun/moon toggle in the header, Light / Dark / Auto in the ••• menu | ✅ done |
 | **Clean up** screen: an "I need X GB" goal fills the tray with the safest items first; three groups: *Safe to delete*, *Rebuildable*, *Take a look*; when each item last changed | ✅ done |
 | "What is this?" under each item: the owning app, found locally through macOS (its name, whether it's installed and running), notes for opaque folders (e.g. `*.ShipIt` update files, the TypeScript cache); "Quit … first" and "App not installed" tags | ✅ done |
+| What's inside Docker, under its row in Clean up: build cache, images, stopped containers and volumes (with their compose project), each removable on its own through Docker; in-use ones are kept | ✅ done |
 | Cleaning that asks every time: to the Trash or permanently; Undo; "Empty from Trash" deletes only that cleanup's items | ✅ done |
 | **Map** screen: a calm two-level treemap colored by category; clicking a tile adds the folder to the tray shared with Clean up; › opens a folder; "Only removable" dims folders that may hold your own files | ✅ done |
 | **History** screen: space reclaimed, how fast the disk fills, a 30/90-day free space chart with cleanups marked, past cleanups with per-item restore from the Trash, folders that keep growing back | ✅ done |
@@ -85,7 +86,8 @@ Kurz scans your home folder, builds a size tree of every file and folder, sugges
 5. **Recommendations.** The rules in [`rules.rs`](src-tauri/src/rules.rs) describe what Kurz may suggest: a path, or a folder name with a condition (e.g. `node_modules` next to `package.json`, only in projects unchanged for 30 days), a risk level (*Safe*, *Rebuildable* or *Take a look*), why, and how to get it back. The protected places live in the same file, and tests make sure no rule reaches into them. Matching runs on the tree in memory, in milliseconds; once a folder matches, nothing inside it is matched again.
 6. **What is this?** For app caches, [`about.rs`](src-tauri/src/about.rs) asks macOS (LaunchServices) which app has that bundle id, wherever it's installed, and whether it's running. Nothing is looked up online.
 7. **Apps.** [`apps.rs`](src-tauri/src/apps.rs) reads each app in `/Applications` and `~/Applications` through `NSBundle` (name, version, vendor from the copyright line, App Store category), sizes it with the same scanner, finds its folders in `~/Library` by bundle id and name, and asks Spotlight (`mdls`) when it was added and last opened. When Spotlight has no record, the last change to the app's data stands in, marked with `~`. Data named after bundle ids of apps that are gone, from vendors with no app left, shows up as leftovers.
-8. **Removal.** Right before removing, each path is checked again: it still exists, it's inside your home folder even after resolving symlinks, and it isn't in a protected place. The Trash is handled by the system `NSFileManager`; Kurz remembers where each item landed in the Trash, so Undo and History can put it back.
+8. **Docker.** [`docker.rs`](src-tauri/src/docker.rs) talks to the Docker Engine API over its socket (`~/.docker/run/docker.sock`) with a few lines of plain HTTP: it asks for images, containers, volumes and build cache one kind at a time (`/system/df?type=…`), which keeps working while builds prune their cache, and removes them with the same API calls the `docker` CLI uses. Docker's own data is never deleted as files, which would corrupt it; Docker removes these for good, with no Trash.
+9. **Removal.** Right before removing, each path is checked again: it still exists, it's inside your home folder even after resolving symlinks, and it isn't in a protected place. The Trash is handled by the system `NSFileManager`; Kurz remembers where each item landed in the Trash, so Undo and History can put it back.
 
 **No database, and none needed.** A tree of ~3 million files fits in a few hundred MB of RAM and is rebuilt on every scan. Kurz writes two small JSON files in `~/Library/Application Support/com.marcinszyc.kurz/`: `settings.json` and `history.json` (cleanups, free space sampled at most hourly, recommendation sizes once a day; data older than 120 days is dropped). It also keeps the last scan in `~/Library/Caches/com.marcinszyc.kurz/last-scan.bin`, so it opens with it: every folder, files of 1 MB or more and the small files rules look for, gzip-compressed (a few MB for a home folder with millions of files; smaller files stay counted in their folder's size). Deleting it only means the next launch starts empty.
 
@@ -297,8 +299,8 @@ Kurz walks you through it: before the first scan, and from a banner when a scan 
 kurz/
 ├── src/                    # UI (React + TypeScript)
 │   ├── App.tsx             # header, tabs, shared tray state
-│   ├── components/         # CleanUp, MapView, HistoryView, AppsView, Tray,
-│   │                       # HeaderMenu, MenuBarSettings, HowItWorks, FullDiskAccess
+│   ├── components/         # CleanUp, DockerPanel, MapView, HistoryView, AppsView,
+│   │                       # Tray, HeaderMenu, MenuBarSettings, HowItWorks, FullDiskAccess
 │   ├── lib/                # calls into Rust, the tray model, formatting
 │   └── assets/             # app icon, Geist fonts (SIL OFL)
 ├── src-tauri/              # core (Rust)
@@ -307,6 +309,7 @@ kurz/
 │   ├── src/recommend.rs    # matching the rules against a scan
 │   ├── src/about.rs        # "what is this": owning app, notes for opaque folders
 │   ├── src/apps.rs         # installed apps, their data, leftovers of removed apps
+│   ├── src/docker.rs       # what's inside Docker, removed through its API
 │   ├── src/cleanup.rs      # path checks, Trash, delete, restore
 │   ├── src/history.rs      # cleanups, free space, sizes over time (JSON)
 │   ├── src/cache.rs        # the last scan, saved compactly for the next launch

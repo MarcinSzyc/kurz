@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { Recommendation } from "../lib/api";
 import { formatBytes } from "../lib/format";
 import { GB, RISKS, ago, sizeOf } from "../lib/tray";
@@ -13,9 +13,12 @@ interface Props {
   onToggle: (id: string) => void;
   onSetMany: (ids: string[], inTray: boolean) => void;
   tray: ReactNode;
+  /** A breakdown that opens under one recommendation, e.g. what's inside Docker. */
+  inside?: { rule: string; onOpen: () => void; render: () => ReactNode };
 }
 
-export function CleanUp({ items, selected, goal, maxGb, onGoal, onToggle, onSetMany, tray }: Props) {
+export function CleanUp({ items, selected, goal, maxGb, onGoal, onToggle, onSetMany, tray, inside }: Props) {
+  const [open, setOpen] = useState<string | null>(null);
   const largest = Math.max(1, ...items.map((i) => i.size));
 
   const marks = useMemo(() => {
@@ -91,6 +94,17 @@ export function CleanUp({ items, selected, goal, maxGb, onGoal, onToggle, onSetM
                       <span className="mono muted" title={item.paths.join("\n")}>
                         {item.location}
                       </span>
+                      {inside?.rule === item.rule && (
+                        <button
+                          className="link inside-toggle"
+                          onClick={() => {
+                            if (open !== item.id) inside.onOpen();
+                            setOpen(open === item.id ? null : item.id);
+                          }}
+                        >
+                          {open === item.id ? "Hide what's inside ▴" : "What's inside ▾"}
+                        </button>
+                      )}
                     </div>
                     <div className="rec-age">
                       <div className="rec-bar">
@@ -102,6 +116,7 @@ export function CleanUp({ items, selected, goal, maxGb, onGoal, onToggle, onSetM
                     <button className={`tray-btn ${on ? "on" : ""}`} onClick={() => onToggle(item.id)}>
                       {on ? "✓ In tray" : "+ Add"}
                     </button>
+                    {open === item.id && inside?.rule === item.rule && <div className="rec-inside">{inside.render()}</div>}
                   </div>
                 );
               })}

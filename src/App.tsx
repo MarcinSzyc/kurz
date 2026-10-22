@@ -4,6 +4,8 @@ import {
   cancelScan,
   cleanUp,
   diskInfo,
+  dockerRemove,
+  dockerReport,
   fullDiskAccess,
   getMenuBarSettings,
   listApps,
@@ -21,6 +23,7 @@ import {
   scanInfo,
   startScan,
   type AppsReport,
+  type DockerReport,
   type CleanMode,
   type CleanReport,
   type DiskInfo,
@@ -40,6 +43,7 @@ import { HowItWorks } from "./components/HowItWorks";
 import { HistoryView } from "./components/HistoryView";
 import { FullDiskAccess } from "./components/FullDiskAccess";
 import { AppsView } from "./components/AppsView";
+import { DockerPanel } from "./components/DockerPanel";
 import { MoreMenu, ThemeToggle, type Theme } from "./components/HeaderMenu";
 import icon from "./assets/icon.png";
 import "./fonts.css";
@@ -88,6 +92,8 @@ function App() {
   const [appsReport, setAppsReport] = useState<AppsReport | null>(null);
   const [appsProgress, setAppsProgress] = useState<{ done: number; total: number; current: string } | null>(null);
   const appsLoading = useRef(false);
+  const [docker, setDocker] = useState<DockerReport | null>(null);
+  const [dockerError, setDockerError] = useState<string | null>(null);
   const [page, setPage] = useState<Page>("cleanup");
   const [theme, setTheme] = useState<Theme>(storedTheme);
 
@@ -220,13 +226,29 @@ function App() {
   }
 
   async function clean(chosen: TrayEntry[], mode: CleanMode) {
-    setCleaning({ done: 0, total: chosen.reduce((n, i) => n + i.paths.length, 0) });
+    const files = chosen.filter((e) => !e.docker);
+    const dockerItems = chosen.filter((e) => e.docker);
+    setCleaning({ done: 0, total: files.reduce((n, i) => n + i.paths.length, 0) + dockerItems.length });
     try {
-      const result = await cleanUp(
-        chosen.map((i) => ({ label: i.label, paths: i.paths })),
-        mode,
-      );
+      const fileReport = files.length
+        ? await cleanUp(
+            files.map((i) => ({ label: i.label, paths: i.paths })),
+            mode,
+          )
+        : null;
+      const dockerReportResult = dockerItems.length
+        ? await dockerRemove(dockerItems.map((e) => ({ kind: e.docker!.kind, id: e.docker!.id, label: e.label, size: e.size })))
+        : null;
+      // One summary for the tray; Undo applies to the files part, which went to the Trash.
+      const parts = [fileReport, dockerReportResult].filter((r): r is CleanReport => r !== null);
+      const cleanups = parts.flatMap((r) => (r.cleanup ? [r.cleanup] : []));
+      const result: CleanReport = {
+        freed: parts.reduce((s, r) => s + r.freed, 0),
+        failed: parts.flatMap((r) => r.failed),
+        cleanup: cleanups.length ? { ...cleanups[0], items: cleanups.flatMap((c) => c.items) } : null,
+      };
       setReport(result);
+      if (dockerItems.length) setDocker(null);
       setSelection([]);
       setFolders([]);
       if (chosen.some((e) => e.key.startsWith("app:") || e.key.startsWith("left:"))) setAppsReport(null);
@@ -273,14 +295,34 @@ function App() {
   // The tray: recommendations picked by the goal or by hand, plus folders from the Map.
   // A recommendation inside a picked folder is left out so nothing counts twice.
   const selected = selection ?? autoPick(items, goal * GB);
+  const hasDockerItems = folders.some((f) => f.docker);
   const recEntries = items
-    .filter((i) => selected.includes(i.id))
+    // Docker's disk image as a whole and pieces of it never both: the pieces win.
+    .filter((i) => selected.includes(i.id) && !(hasDockerItems && i.rule === "docker-data"))
     .map(fromRecommendation)
     .filter((e) => !e.paths.every((p) => folders.some((f) => covers(f, p))));
   const tray = [...recEntries, ...folders];
   const maxGb = Math.max(1, Math.ceil(sizeOf(items) / GB));
 
-  const toggleRec = (id: string) => setSelection(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+  function toggleRec(id: string) {
+    const adding = !selected.includes(id);
+    setSelection(adding ? [...selected, id] : selected.filter((x) => x !== id));
+    // Adding all of Docker's data replaces the pieces of it in the tray.
+    if (adding && items.find((i) => i.id === id)?.rule === "docker-data") setFolders(folders.filter((f) => !f.docker));
+  }
+
+  function loadDocker() {
+    if (docker) return;
+    setDockerError(null);
+    dockerReport().then(setDocker, (e) => setDockerError(String(e)));
+  }
+
+  /** Adds Docker pieces, taking Docker's disk image as a whole out of the tray. */
+  function addDocker(entries: TrayEntry[]) {
+    const dockerIds = items.filter((i) => i.rule === "docker-data").map((i) => i.id);
+    setSelection(selected.filter((id) => !dockerIds.includes(id)));
+    setFolders([...folders.filter((f) => !entries.some((e) => e.key === f.key)), ...entries]);
+  }
   const setMany = (ids: string[], on: boolean) =>
     setSelection(on ? [...new Set([...selected, ...ids])] : selected.filter((x) => !ids.includes(x)));
 
@@ -440,6 +482,19 @@ function App() {
           onToggle={toggleRec}
           onSetMany={setMany}
           tray={trayPanel(true)}
+          inside={{
+            rule: "docker-data",
+            onOpen: loadDocker,
+            render: () => (
+              <DockerPanel
+                report={docker}
+                error={dockerError}
+                tray={tray}
+                onToggle={(e) => (folders.some((f) => f.key === e.key) ? removeEntry(e.key) : addDocker([e]))}
+                onAddMany={addDocker}
+              />
+            ),
+          }}
         />
       ) : page === "map" && node && done ? (
         <MapView node={node} root={done.root} items={items} tray={tray} onOpen={open} onToggleFolder={toggleFolder} trayPanel={trayPanel(false)} />
