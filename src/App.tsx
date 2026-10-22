@@ -379,6 +379,7 @@ function App() {
   const updateEntry = (entry: TrayEntry) => setFolders(folders.map((f) => (f.key === entry.key ? entry : f)));
 
   function toggleFolder(n: TreeNode) {
+    if (n.protected) return;
     const holder = tray.find((e) => covers(e, n.path));
     if (holder) return removeEntry(holder.key);
     if (!home) return;

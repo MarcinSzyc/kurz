@@ -112,6 +112,8 @@ struct NodeView {
     category: Category,
     size: u64,
     files: u64,
+    /// Kurz never removes it (or something inside it): the map shows a lock instead of adding it.
+    protected: bool,
     /// `None` when the depth limit cut the tree here or the node has no children.
     children: Option<Vec<NodeView>>,
 }
@@ -126,7 +128,8 @@ fn kind_name(kind: Kind) -> &'static str {
 }
 
 /// `level` is how deep `node` is below the scan root, which classification needs.
-fn view(node: &Node, path: PathBuf, depth: u32, min_size: u64, category: Category, level: usize) -> NodeView {
+#[allow(clippy::too_many_arguments)]
+fn view(node: &Node, path: PathBuf, root: &Path, depth: u32, min_size: u64, category: Category, level: usize) -> NodeView {
     let children = (depth > 0 && !node.children.is_empty()).then(|| {
         // Children are sorted by size, so the shown ones are a prefix.
         let shown = node.children.iter().take(MAX_CHILDREN).take_while(|c| c.size >= min_size).count();
@@ -134,7 +137,7 @@ fn view(node: &Node, path: PathBuf, depth: u32, min_size: u64, category: Categor
             .iter()
             .map(|c| {
                 let child_category = categories::classify(c, category, level + 1);
-                view(c, path.join(&*c.name), depth - 1, min_size, child_category, level + 1)
+                view(c, path.join(&*c.name), root, depth - 1, min_size, child_category, level + 1)
             })
             .collect();
         let rest = &node.children[shown..];
@@ -146,6 +149,7 @@ fn view(node: &Node, path: PathBuf, depth: u32, min_size: u64, category: Categor
                 category,
                 size: rest.iter().map(|c| c.size).sum(),
                 files: rest.iter().map(|c| c.files).sum(),
+                protected: true,
                 children: None,
             });
         }
@@ -158,6 +162,7 @@ fn view(node: &Node, path: PathBuf, depth: u32, min_size: u64, category: Categor
         category,
         size: node.size,
         files: node.files,
+        protected: path.strip_prefix(root).map_or(true, |r| r.as_os_str().is_empty() || rules::is_protected(&r.to_string_lossy())),
         children,
     }
 }
@@ -254,7 +259,7 @@ fn get_tree(state: State<AppState>, path: Option<String>, depth: u32) -> Result<
         category = categories::classify(node, category, level);
     }
     let min_size = (node.size as f64 * MIN_SHARE) as u64;
-    Ok(view(node, path, depth, min_size, category, level))
+    Ok(view(node, path, &result.root, depth, min_size, category, level))
 }
 
 fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -326,7 +331,15 @@ fn how_it_works() -> HowItWorks {
                 command: r.command,
             })
             .collect(),
-        never: rules::NEVER.iter().map(|(path, what)| (format!("~/{path}"), *what)).collect(),
+        never: rules::NEVER
+            .iter()
+            .chain(rules::APPLE_DATA)
+            .map(|(path, what)| (format!("~/{path}"), *what))
+            .chain([
+                ("~/Library/…/com.apple.*".to_string(), "Apple apps' own data (their caches and logs may go)"),
+                ("~/Library, ~/Library/Application Support, Containers, Group Containers, Preferences".to_string(), "As a whole; single apps' folders inside may go"),
+            ])
+            .collect(),
         categories: categories::examples().into_iter().map(|(category, examples)| CategoryView { category, examples }).collect(),
         idle_days: rules::IDLE_DAYS,
         max_children: MAX_CHILDREN,

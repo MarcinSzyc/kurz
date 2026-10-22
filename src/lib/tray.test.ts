@@ -23,6 +23,7 @@ const node = (path: string, category: TreeNode["category"], name = path.split("/
   category,
   size: GB,
   files: 10,
+  protected: false,
   children: null,
 });
 

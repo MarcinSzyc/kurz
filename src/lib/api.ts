@@ -12,6 +12,8 @@ export interface TreeNode {
   category: Category;
   size: number;
   files: number;
+  /** Kurz never removes it, or something inside it. */
+  protected: boolean;
   children: TreeNode[] | null;
 }
 

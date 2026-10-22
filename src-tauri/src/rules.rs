@@ -359,9 +359,55 @@ pub const NEVER: &[(&str, &str)] = &[
     (".gnupg", "GPG keys"),
 ];
 
-/// True when `relative` (a path relative to home) is inside a protected location.
+/// macOS's and Apple apps' own data in ~/Library: contacts, calendars, iPhone backups, cloud
+/// drives. Never removed, nor anything that contains them.
+pub const APPLE_DATA: &[(&str, &str)] = &[
+    ("Library/Accounts", "Internet accounts"),
+    ("Library/Application Support/AddressBook", "Contacts"),
+    ("Library/Application Support/CallHistoryDB", "Call history"),
+    ("Library/Application Support/CloudDocs", "iCloud Drive state"),
+    ("Library/Application Support/FileProvider", "Cloud file providers"),
+    ("Library/Application Support/Knowledge", "Screen Time and Siri data"),
+    ("Library/Application Support/MobileSync", "iPhone and iPad backups"),
+    ("Library/Autosave Information", "Unsaved documents"),
+    ("Library/Calendars", "Calendars"),
+    ("Library/CloudStorage", "Dropbox, OneDrive, Google Drive files"),
+    ("Library/Cookies", "Website logins"),
+    ("Library/IdentityServices", "iMessage and FaceTime identity"),
+    ("Library/Photos", "Photos data"),
+    ("Library/Reminders", "Reminders"),
+    ("Library/Safari", "Safari bookmarks and history"),
+    ("Library/Shortcuts", "Shortcuts"),
+];
+
+/// Folders that hold many apps' data, including Apple's: their contents can go one by one,
+/// never the folder as a whole.
+const NEVER_WHOLE: &[&str] = &[
+    "Library",
+    "Library/Application Support",
+    "Library/Containers",
+    "Library/Group Containers",
+    "Library/Preferences",
+    "Applications",
+];
+
+/// Under these, Apple's caches and logs come back on their own, so `com.apple.*` may go.
+const APPLE_REGENERABLE: &[&str] = &["Library/Caches/", "Library/Logs/"];
+
+/// True when `relative` (a path relative to home) must not be removed: a protected place,
+/// anything inside one, or a folder that contains one.
 pub fn is_protected(relative: &str) -> bool {
-    NEVER.iter().any(|(path, _)| relative == *path || relative.starts_with(&format!("{path}/")))
+    let relative = relative.trim_end_matches('/');
+    let inside = |place: &str| relative == place || relative.starts_with(&format!("{place}/"));
+    let contains = |place: &str| place.starts_with(&format!("{relative}/"));
+    let places = NEVER.iter().chain(APPLE_DATA).map(|(p, _)| *p);
+    if places.clone().any(|p| inside(p) || contains(p)) || NEVER_WHOLE.contains(&relative) {
+        return true;
+    }
+    // Apple's own app data, e.g. Library/Containers/com.apple.mail or Application Support/com.apple.TCC.
+    relative.starts_with("Library/")
+        && !APPLE_REGENERABLE.iter().any(|r| relative.starts_with(r))
+        && relative.split('/').any(|part| part.starts_with("com.apple.") || part.starts_with("group.com.apple."))
 }
 
 #[cfg(test)]
@@ -385,6 +431,28 @@ mod tests {
             assert!(!path.starts_with('/') && !path.contains(".."), "{} must be relative to home", rule.id);
             assert!(!is_protected(path), "{} points into a protected location", rule.id);
         }
+    }
+
+    #[test]
+    fn protects_folders_that_contain_protected_places() {
+        assert!(is_protected("Library"), "holds Keychains, Mail and Messages");
+        assert!(is_protected("Library/Application Support"));
+        assert!(is_protected("Library/Containers"));
+        assert!(is_protected("Library/Preferences"));
+        assert!(!is_protected("Library/Preferences/com.spotify.client.plist"), "one app's settings may go");
+        assert!(!is_protected("Library/Application Support/Spotify"));
+        assert!(!is_protected("Library/Containers/com.docker.docker"));
+    }
+
+    #[test]
+    fn protects_apples_own_data_but_not_its_caches() {
+        assert!(is_protected("Library/Application Support/MobileSync/Backup"), "iPhone backups");
+        assert!(is_protected("Library/CloudStorage/Dropbox"), "cloud drive files");
+        assert!(is_protected("Library/Containers/com.apple.mail"));
+        assert!(is_protected("Library/Group Containers/group.com.apple.notes"));
+        assert!(is_protected("Library/Application Support/com.apple.TCC"));
+        assert!(!is_protected("Library/Caches/com.apple.Safari"), "caches come back");
+        assert!(!is_protected("Library/Logs/com.apple.xpc.launchd"));
     }
 
     #[test]

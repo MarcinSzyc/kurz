@@ -312,7 +312,9 @@ fn data_parts(home: &Path, id: &str, name: &str) -> Vec<Part> {
             vec![base.join(id), base.join(name), base.join(format!("{id}.ShipIt"))]
         };
         for path in candidates {
-            if fs::symlink_metadata(&path).is_ok() && seen.insert(path.clone()) {
+            // Apple's own data (e.g. Xcode's container) is never offered for removal.
+            let protected = path.strip_prefix(home).is_ok_and(|r| crate::rules::is_protected(&r.to_string_lossy()));
+            if !protected && fs::symlink_metadata(&path).is_ok() && seen.insert(path.clone()) {
                 parts.push(Part { kind, path: path.to_string_lossy().into_owned(), size: size_of(&path) });
             }
         }

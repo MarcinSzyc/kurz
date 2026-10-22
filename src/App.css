@@ -3381,3 +3381,15 @@ button.link.strong {
   border-color: var(--seg);
   color: var(--muted);
 }
+
+.calm-tile.locked {
+  cursor: default;
+}
+
+.calm-lock {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  font-size: 11px;
+  opacity: 0.7;
+}

@@ -178,18 +178,20 @@ export function MapView({ node, root, items, tray, onOpen, onToggleFolder, trayP
             }
             const n = t.node;
             const picked = inTray(n.path);
+            const locked = n.protected;
             const dim = onlyRemovable && !picked && riskOfFolder(n, items) === "takeALook";
             const big = t.w > 200 && t.h > 150;
             return (
               <div
                 key={t.key}
-                className={`calm-tile cat-${n.category} ${picked ? "picked" : ""} ${dim ? "dim" : ""}`}
+                className={`calm-tile cat-${n.category} ${picked ? "picked" : ""} ${dim ? "dim" : ""} ${locked ? "locked" : ""}`}
                 style={style}
-                title={`${n.path.replace(root, "~")} · ${formatBytes(n.size)}`}
-                onClick={() => onToggleFolder(n)}
+                title={`${n.path.replace(root, "~")} · ${formatBytes(n.size)}${locked ? "\nKurz never removes this as a whole; open it to pick what's inside" : ""}`}
+                onClick={() => !locked && onToggleFolder(n)}
               >
                 {t.w > 64 && t.h > 40 && <span className="calm-name">{n.name}</span>}
                 {t.w > 64 && t.h > 64 && <span className={`calm-size mono ${big ? "big" : ""}`}>{formatBytes(n.size)}</span>}
+                {locked && t.w > 40 && t.h > 30 && <span className="calm-lock" aria-label="Protected">🔒</span>}
                 {picked && t.w > 110 && t.h > 56 && <span className="calm-badge">✓ In tray</span>}
                 {picked && !(t.w > 110 && t.h > 56) && t.w > 16 && <span className="calm-dot" />}
                 {!picked && n.kind === "dir" && n.files > 1 && t.w > 100 && t.h > 80 && (
