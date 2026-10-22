@@ -8,6 +8,8 @@ const PREVIEW = 6;
 
 interface Props {
   report: DockerReport | null;
+  /** `null` while Docker measures them. */
+  volumes: DockerItem[] | null;
   error: string | null;
   tray: TrayEntry[];
   onToggle: (entry: TrayEntry) => void;
@@ -17,14 +19,14 @@ interface Props {
 const sum = (items: DockerItem[]) => items.reduce((s, i) => s + i.size, 0);
 
 /** What's inside Docker's disk image, each piece removable on its own. */
-export function DockerPanel({ report, error, tray, onToggle, onAddMany }: Props) {
+export function DockerPanel({ report, volumes, error, tray, onToggle, onAddMany }: Props) {
   const inTray = (item: DockerItem) => tray.some((e) => e.key === fromDocker(item).key);
 
   if (error) return <div className="docker-panel"><p className="muted small">{error}</p></div>;
   if (!report) {
     return (
       <div className="docker-panel">
-        <p className="muted small">Asking Docker what's inside… this takes a few seconds.</p>
+        <p className="muted small">Asking Docker what's inside…</p>
       </div>
     );
   }
@@ -43,9 +45,15 @@ export function DockerPanel({ report, error, tray, onToggle, onAddMany }: Props)
       locked: "running",
     },
     {
-      title: "Volumes",
-      desc: "Data containers keep, like databases. Look before removing: this is often your data.",
-      items: report.volumes,
+      title: "Named volumes",
+      desc: "Data containers keep, like databases, usually from a compose project. Look before removing: this is often your data.",
+      items: (volumes ?? []).filter((v) => !v.anonymous),
+      locked: "attached to containers",
+    },
+    {
+      title: "Anonymous volumes",
+      desc: "Volumes Docker named itself, mostly left behind by containers that are gone.",
+      items: (volumes ?? []).filter((v) => v.anonymous),
       locked: "attached to containers",
     },
   ];
@@ -76,6 +84,7 @@ export function DockerPanel({ report, error, tray, onToggle, onAddMany }: Props)
       {groups.map((g) => (
         <DockerGroup key={g.title} {...g} inTray={inTray} onToggle={onToggle} onAddMany={onAddMany} />
       ))}
+      {volumes === null && <p className="muted small">Measuring volume sizes… Docker checks each of them, which takes a few seconds.</p>}
     </div>
   );
 }

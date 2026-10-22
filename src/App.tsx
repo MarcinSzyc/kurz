@@ -6,6 +6,7 @@ import {
   diskInfo,
   dockerRemove,
   dockerReport,
+  dockerVolumes,
   fullDiskAccess,
   getMenuBarSettings,
   listApps,
@@ -23,6 +24,7 @@ import {
   scanInfo,
   startScan,
   type AppsReport,
+  type DockerItem,
   type DockerReport,
   type CleanMode,
   type CleanReport,
@@ -93,7 +95,9 @@ function App() {
   const [appsProgress, setAppsProgress] = useState<{ done: number; total: number; current: string } | null>(null);
   const appsLoading = useRef(false);
   const [docker, setDocker] = useState<DockerReport | null>(null);
+  const [dockerVols, setDockerVols] = useState<DockerItem[] | null>(null);
   const [dockerError, setDockerError] = useState<string | null>(null);
+  const dockerLoading = useRef(false);
   const [page, setPage] = useState<Page>("cleanup");
   const [theme, setTheme] = useState<Theme>(storedTheme);
 
@@ -251,7 +255,10 @@ function App() {
         cleanup: cleanups.length ? { ...cleanups[0], items: cleanups.flatMap((c) => c.items) } : null,
       };
       setReport(result);
-      if (dockerItems.length) setDocker(null);
+      if (dockerItems.length) {
+        setDocker(null);
+        setDockerVols(null);
+      }
       setSelection([]);
       setFolders([]);
       if (chosen.some((e) => e.key.startsWith("app:") || e.key.startsWith("left:"))) setAppsReport(null);
@@ -314,11 +321,24 @@ function App() {
     if (adding && items.find((i) => i.id === id)?.rule === "docker-data") setFolders(folders.filter((f) => !f.docker));
   }
 
+  /** Asks Docker what's inside: the quick part and the volumes, which take longer, side by side. */
   function loadDocker() {
-    if (docker) return;
+    if (docker || dockerLoading.current) return;
+    dockerLoading.current = true;
     setDockerError(null);
-    dockerReport().then(setDocker, (e) => setDockerError(String(e)));
+    const quick = dockerReport().then(setDocker, (e) => setDockerError(String(e)));
+    const vols = dockerVolumes().then(setDockerVols, () => setDockerVols([]));
+    Promise.allSettled([quick, vols]).then(() => {
+      dockerLoading.current = false;
+    });
   }
+
+  // Start asking as soon as Docker shows up in the recommendations, so it's ready when opened.
+  const hasDocker = items.some((i) => i.rule === "docker-data");
+  useEffect(() => {
+    if (hasDocker && !docker) loadDocker();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasDocker, docker]);
 
   /** Adds Docker pieces, taking Docker's disk image as a whole out of the tray. */
   function addDocker(entries: TrayEntry[]) {
@@ -491,6 +511,7 @@ function App() {
             render: () => (
               <DockerPanel
                 report={docker}
+                volumes={dockerVols}
                 error={dockerError}
                 tray={tray}
                 onToggle={(e) => (folders.some((f) => f.key === e.key) ? removeEntry(e.key) : addDocker([e]))}

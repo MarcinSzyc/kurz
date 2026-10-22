@@ -644,6 +644,13 @@ async fn docker_report(app: AppHandle) -> Result<docker::Report, String> {
     tauri::async_runtime::spawn_blocking(move || docker::report(&home)).await.map_err(|e| e.to_string())?
 }
 
+/// Docker's volumes with their sizes, which take Docker several seconds to measure.
+#[tauri::command]
+async fn docker_volumes(app: AppHandle) -> Result<Vec<docker::Item>, String> {
+    let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || docker::volumes_report(&home)).await.map_err(|e| e.to_string())?
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DockerRequest {
@@ -798,6 +805,7 @@ pub fn run() {
             list_apps,
             scan_info,
             docker_report,
+            docker_volumes,
             docker_remove,
             open_full_disk_access_settings,
             relaunch,

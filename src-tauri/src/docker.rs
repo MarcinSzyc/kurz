@@ -39,14 +39,16 @@ pub struct Item {
     pub in_use: bool,
     /// The docker compose project it belongs to.
     pub project: Option<String>,
+    /// A volume Docker named itself (`docker run -v /path` without a name).
+    pub anonymous: bool,
 }
 
+/// Everything but volumes, which take Docker much longer to measure and come separately.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Report {
     pub images: Vec<Item>,
     pub containers: Vec<Item>,
-    pub volumes: Vec<Item>,
     /// The whole build cache as one item; Docker prunes it as a whole.
     pub build_cache: Option<Item>,
 }
@@ -125,6 +127,7 @@ fn images(v: &Value) -> Vec<Item> {
                 created: i["Created"].as_i64().unwrap_or(0),
                 in_use: used_by > 0,
                 project: project(i),
+                anonymous: false,
             }
         })
         .collect()
@@ -146,6 +149,7 @@ fn containers(v: &Value) -> Vec<Item> {
                 created: c["Created"].as_i64().unwrap_or(0),
                 in_use: matches!(state, "running" | "paused" | "restarting"),
                 project: project(c),
+                anonymous: false,
             }
         })
         .collect()
@@ -173,6 +177,7 @@ fn volumes(v: &Value) -> Vec<Item> {
                 created: rfc3339(vol["CreatedAt"].as_str().unwrap_or_default()),
                 in_use: refs > 0,
                 project: project(vol),
+                anonymous,
             }
         })
         .collect()
@@ -195,23 +200,43 @@ fn build_cache(v: &Value) -> Option<Item> {
         created: newest,
         in_use: false,
         project: None,
+        anonymous: false,
     })
 }
 
-/// Everything inside Docker, largest first, or why it can't be read.
-pub fn report(home: &Path) -> Result<Report, String> {
+fn not_running(e: String) -> String {
+    if e.contains("refused") || e.contains("No such file") { "Docker isn't running. Start it to see what's inside.".to_string() } else { e }
+}
+
+fn df(home: &Path, kind: &str) -> Result<Value, String> {
     let sock = socket(home).ok_or("Docker isn't installed or has never run")?;
-    let df = |t: &str| get_json(&sock, &format!("/system/df?type={t}")).map_err(|e| e.to_string());
-    let not_running = |e: String| if e.contains("refused") || e.contains("No such file") { "Docker isn't running. Start it to see what's inside.".to_string() } else { e };
-    let mut images = images(&df("image").map_err(not_running)?);
-    let mut containers = containers(&df("container")?);
-    let mut volumes = volumes(&df("volume")?);
+    get_json(&sock, &format!("/system/df?type={kind}")).map_err(|e| not_running(e.to_string()))
+}
+
+/// Images, containers and the build cache, largest first, asked for at the same time.
+pub fn report(home: &Path) -> Result<Report, String> {
+    let (images_v, containers_v, cache_v) =
+        std::thread::scope(|s| {
+            let i = s.spawn(|| df(home, "image"));
+            let c = s.spawn(|| df(home, "container"));
+            let b = s.spawn(|| df(home, "build-cache"));
+            (i.join().unwrap(), c.join().unwrap(), b.join().unwrap())
+        });
+    let mut images = images(&images_v?);
+    let mut containers = containers(&containers_v?);
     // The build cache can fail while a build prunes it; the rest is still worth showing.
-    let build_cache = df("build-cache").ok().as_ref().and_then(build_cache);
-    for list in [&mut images, &mut containers, &mut volumes] {
+    let build_cache = cache_v.ok().as_ref().and_then(build_cache);
+    for list in [&mut images, &mut containers] {
         list.sort_by_key(|i| std::cmp::Reverse(i.size));
     }
-    Ok(Report { images, containers, volumes, build_cache })
+    Ok(Report { images, containers, build_cache })
+}
+
+/// Volumes with their sizes, largest first. Slow: Docker measures every volume.
+pub fn volumes_report(home: &Path) -> Result<Vec<Item>, String> {
+    let mut list = volumes(&df(home, "volume")?);
+    list.sort_by_key(|i| std::cmp::Reverse(i.size));
+    Ok(list)
 }
 
 /// Removes one item through the Docker API. Returns the bytes Docker reports it freed, if any.
@@ -274,6 +299,7 @@ mod tests {
         assert_eq!((list[0].size, list[0].in_use, list[0].detail.as_str()), (516, false, "not attached to a container"));
         assert_eq!(list[0].created, 1_788_881_227);
         assert_eq!(list[1].name, "anonymous 5afeed182c13");
+        assert!(list[1].anonymous && !list[0].anonymous);
         assert_eq!((list[1].size, list[1].in_use), (0, true));
     }
 

@@ -218,15 +218,18 @@ export interface DockerItem {
   created: number;
   inUse: boolean;
   project: string | null;
+  /** A volume Docker named itself. */
+  anonymous: boolean;
 }
 
+/** Everything but volumes, which come separately as they take Docker longer to measure. */
 export interface DockerReport {
   images: DockerItem[];
   containers: DockerItem[];
-  volumes: DockerItem[];
   buildCache: DockerItem | null;
 }
 
 export const dockerReport = () => invoke<DockerReport>("docker_report");
+export const dockerVolumes = () => invoke<DockerItem[]>("docker_volumes");
 export const dockerRemove = (items: { kind: DockerKind; id: string; label: string; size: number }[]) =>
   invoke<CleanReport>("docker_remove", { items });

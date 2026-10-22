@@ -171,6 +171,7 @@ describe("fromDocker", () => {
     created: 0,
     inUse: false,
     project: "shop",
+    anonymous: false,
   });
 
   it("rates volumes as possibly your data, build cache as safe", () => {

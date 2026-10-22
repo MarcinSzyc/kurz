@@ -96,13 +96,13 @@ export function CleanUp({ items, selected, goal, maxGb, onGoal, onToggle, onSetM
                       </span>
                       {inside?.rule === item.rule && (
                         <button
-                          className="link inside-toggle"
+                          className="small-btn inside-toggle"
                           onClick={() => {
                             if (open !== item.id) inside.onOpen();
                             setOpen(open === item.id ? null : item.id);
                           }}
                         >
-                          {open === item.id ? "Hide what's inside ▴" : "What's inside ▾"}
+                          {open === item.id ? "Hide ▴" : "What's inside ▾"}
                         </button>
                       )}
                     </div>
