@@ -170,9 +170,12 @@ function App() {
     }, fail);
     getMenuBarSettings().then(setMenuBar, fail);
     fullDiskAccess().then(setFda, () => setFda(false));
-    showSavedScan();
     const unlisten = [
-      onScanLoaded(() => showSavedScan()),
+      // Listen first, then ask: the saved scan may finish loading at any moment, before or after.
+      onScanLoaded(() => showSavedScan()).then((off) => {
+        showSavedScan();
+        return off;
+      }),
       onOpenSettings(() => setSettingsOpen(true)),
       onScanProgress(setProgress),
       onCleanupProgress((p) => setCleaning({ done: p.done, total: p.total })),
