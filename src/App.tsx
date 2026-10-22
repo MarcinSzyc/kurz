@@ -18,6 +18,8 @@ import {
   onOpenSettings,
   onScanDone,
   onScanLoaded,
+  onScanUpdated,
+  remeasureDockerData,
   onScanProgress,
   purgeCleanup,
   restoreCleanup,
@@ -180,6 +182,14 @@ function App() {
         showSavedScan();
         return off;
       }),
+      onScanUpdated(() => {
+        refreshRecommendations().catch(fail);
+        homeDir().then(refreshDisk, () => {});
+        setNode((n) => {
+          if (n) open(n.path);
+          return n;
+        });
+      }),
       onOpenSettings(() => setSettingsOpen(true)),
       onScanProgress(setProgress),
       onCleanupProgress((p) => setCleaning({ done: p.done, total: p.total })),
@@ -327,6 +337,8 @@ function App() {
     dockerLoading.current = true;
     setDockerError(null);
     const quick = dockerReport().then(setDocker, (e) => setDockerError(String(e)));
+    // The scan's size for Docker's folder goes stale as Docker frees space on its own.
+    remeasureDockerData().catch(() => {});
     const vols = dockerVolumes().then(setDockerVols, () => setDockerVols([]));
     Promise.allSettled([quick, vols]).then(() => {
       dockerLoading.current = false;

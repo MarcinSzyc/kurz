@@ -392,6 +392,37 @@ struct CleanReport {
     failed: Vec<Failure>,
 }
 
+/// Scans `path` again and puts the result in the tree in place of the old one, then tells the UI.
+/// For folders that change outside Kurz's own cleanups, like Docker's disk image.
+fn remeasure(app: &AppHandle, path: &Path) {
+    let state = app.state::<AppState>();
+    let Some(fresh) = scanner::scan(path, &AtomicBool::new(false), &Progress::default()).ok().flatten() else { return };
+    {
+        let mut guard = state.result.lock().unwrap();
+        let Some(result) = guard.as_mut() else { return };
+        let Ok(relative) = path.strip_prefix(&result.root) else { return };
+        if result.tree.remove(relative).is_none() || !result.tree.restore(relative, fresh) {
+            return;
+        }
+    }
+    save_scan(app);
+    app.state::<MenuBar>().refresh_soon();
+    let _ = app.emit("scan-updated", ());
+}
+
+/// `remeasure` after each delay, in the background.
+fn remeasure_after(app: &AppHandle, path: PathBuf, delays: &[Duration]) {
+    let (app, delays) = (app.clone(), delays.to_vec());
+    thread::spawn(move || {
+        let mut waited = Duration::ZERO;
+        for delay in delays {
+            thread::sleep(delay - waited);
+            waited = delay;
+            remeasure(&app, &path);
+        }
+    });
+}
+
 /// The size of `path` in the scanned tree, if it's in there.
 fn in_tree_size(state: &AppState, path: &Path) -> Option<u64> {
     let guard = state.result.lock().unwrap();
@@ -644,6 +675,14 @@ async fn docker_report(app: AppHandle) -> Result<docker::Report, String> {
     tauri::async_runtime::spawn_blocking(move || docker::report(&home)).await.map_err(|e| e.to_string())?
 }
 
+/// Measures Docker's disk image again: it changes when Docker frees space, not through Kurz.
+#[tauri::command]
+fn remeasure_docker_data(app: AppHandle) -> Result<(), String> {
+    let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    remeasure_after(&app, home.join("Library/Containers/com.docker.docker"), &[Duration::ZERO]);
+    Ok(())
+}
+
 /// Docker's volumes with their sizes, which take Docker several seconds to measure.
 #[tauri::command]
 async fn docker_volumes(app: AppHandle) -> Result<Vec<docker::Item>, String> {
@@ -690,6 +729,9 @@ fn run_docker_cleanup(app: &AppHandle, items: Vec<DockerRequest>) -> Result<Clea
     if let Some(c) = &cleanup {
         history::update(&history_path(app)?, |h| h.cleanups.push(c.clone())).map_err(|e| e.to_string())?;
         MenuBar::refresh_after(app, &[Duration::from_secs(60), Duration::from_secs(300)]);
+        // Docker shrinks its disk image on its own schedule: measure it again a few times.
+        let docker_data = home.join("Library/Containers/com.docker.docker");
+        remeasure_after(app, docker_data, &[Duration::from_secs(5), Duration::from_secs(60), Duration::from_secs(300)]);
     }
     Ok(CleanReport { freed: cleanup.as_ref().map_or(0, |c| c.freed()), cleanup, failed })
 }
@@ -806,6 +848,7 @@ pub fn run() {
             scan_info,
             docker_report,
             docker_volumes,
+            remeasure_docker_data,
             docker_remove,
             open_full_disk_access_settings,
             relaunch,

@@ -233,3 +233,6 @@ export const dockerReport = () => invoke<DockerReport>("docker_report");
 export const dockerVolumes = () => invoke<DockerItem[]>("docker_volumes");
 export const dockerRemove = (items: { kind: DockerKind; id: string; label: string; size: number }[]) =>
   invoke<CleanReport>("docker_remove", { items });
+export const remeasureDockerData = () => invoke<void>("remeasure_docker_data");
+/** The scan changed outside a full scan, e.g. Docker's folder was measured again. */
+export const onScanUpdated = (cb: () => void): Promise<UnlistenFn> => listen("scan-updated", () => cb());
