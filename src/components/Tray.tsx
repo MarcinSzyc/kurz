@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CleanMode, CleanReport, DiskInfo } from "../lib/api";
 import { formatBytes } from "../lib/format";
 import { GB, RISKS, items, type TrayEntry } from "../lib/tray";
@@ -221,7 +221,16 @@ function ConfirmSheet({
   onConfirm: (mode: CleanMode) => void;
 }) {
   const [mode, setMode] = useState<CleanMode>("trash");
+  // A deliberate tick before anything is removed, so a stray click or Enter can't do it.
+  const [checked, setChecked] = useState(false);
   const sum = total(entries);
+  const permanent = mode === "delete" || entries.some((e) => e.docker);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
   const modes: { id: CleanMode; label: string; desc: string }[] = [
     { id: "trash", label: "Move to Trash", desc: "You can restore it until you empty the Trash" },
     { id: "delete", label: "Delete permanently", desc: "Frees the space right away. Can't be undone." },
@@ -290,9 +299,20 @@ function ConfirmSheet({
             </label>
           ))}
         </div>
+        <label className={`confirm-check ${permanent ? "permanent" : ""}`}>
+          <input type="checkbox" role="switch" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
+          <i className="toggle-track" />
+          <span>
+            I've checked {items(entries.length)}
+            {permanent ? (mode === "delete" ? " and know this can't be undone" : " and know Docker's part can't be undone") : ""}
+          </span>
+        </label>
         <div className="confirm-actions">
-          <button onClick={onCancel}>Cancel</button>
-          <button className={`cta ${mode === "delete" ? "danger" : ""}`} onClick={() => onConfirm(mode)} autoFocus>
+          {/* Cancel has the focus: Enter never removes anything. */}
+          <button onClick={onCancel} autoFocus>
+            Cancel
+          </button>
+          <button className={`cta ${mode === "delete" ? "danger" : ""}`} onClick={() => onConfirm(mode)} disabled={!checked}>
             {mode === "delete" ? `Delete ${formatBytes(sum)}` : "Move to Trash"}
           </button>
         </div>

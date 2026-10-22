@@ -3322,3 +3322,62 @@ button.link.strong {
 .docker-locked {
   margin: 6px 0 0;
 }
+
+/* The tick that has to be set before removing anything. */
+.confirm-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 26px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--border-strong);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.confirm-check input {
+  display: none;
+}
+
+/* A switch, like "Only removable" on the map: on enables the remove button. */
+.confirm-check .toggle-track {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--track);
+  transition: background 0.15s;
+}
+
+.confirm-check .toggle-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+  transition: left 0.15s;
+}
+
+.confirm-check input:checked + .toggle-track {
+  background: var(--good);
+}
+
+.confirm-check.permanent input:checked + .toggle-track {
+  background: var(--danger);
+}
+
+.confirm-check input:checked + .toggle-track::after {
+  left: 16px;
+}
+
+.confirm-actions .cta:disabled {
+  background: var(--seg);
+  border-color: var(--seg);
+  color: var(--muted);
+}
