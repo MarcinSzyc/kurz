@@ -182,8 +182,12 @@ export function DockerPanel({ report, volumes, error, diskImage, tray, onSet, on
                 {i.detail}
               </span>
             </span>
-            <span className={`dk-status ${/data/.test(status) ? "data" : /Unused|Dangling|Anonymous|Cache|Rebuildable/.test(status) ? "fine" : ""}`}>
-              {status}
+            <span className="dk-pills">
+              {/* Images and volumes listed here are unused; say so, then what kind of unused. */}
+              {(i.kind === "image" || i.kind === "volume") && status !== "Unused" && <span className="dk-status fine">Unused</span>}
+              <span className={`dk-status ${/data/.test(status) ? "data" : /Unused|Dangling|Anonymous|Cache|Rebuildable/.test(status) ? "fine" : ""}`}>
+                {status}
+              </span>
             </span>
             <span className="muted small">{i.created ? `${i.kind === "buildCache" || i.kind === "volume" ? "used" : "created"} ${ago(i.created)}` : ""}</span>
             <span className="mono dk-size">{formatBytes(i.size)}</span>
@@ -199,7 +203,9 @@ export function DockerPanel({ report, volumes, error, diskImage, tray, onSet, on
               <span className="mono">{i.name}</span>
               <span className="muted">{i.detail}</span>
             </span>
-            <span className="dk-status">{dockerStatus(i)}</span>
+            <span className="dk-pills">
+              <span className="dk-status">{dockerStatus(i)}</span>
+            </span>
             <span />
             <span className="mono dk-size">{formatBytes(i.size)}</span>
           </div>
