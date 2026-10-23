@@ -143,7 +143,13 @@ fn containers(v: &Value) -> Vec<Item> {
             Item {
                 kind: Kind::Container,
                 id: c["Id"].as_str().unwrap_or_default().to_string(),
-                name: c["Names"].as_array().and_then(|n| n.first()).and_then(Value::as_str).unwrap_or_default().trim_start_matches('/').to_string(),
+                name: c["Names"]
+                    .as_array()
+                    .and_then(|n| n.first())
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .trim_start_matches('/')
+                    .to_string(),
                 detail: format!("{} · {}", c["Image"].as_str().unwrap_or_default(), c["Status"].as_str().unwrap_or(state)),
                 size: c["SizeRw"].as_u64().unwrap_or(0),
                 created: c["Created"].as_i64().unwrap_or(0),
@@ -162,7 +168,8 @@ fn volumes(v: &Value) -> Vec<Item> {
         .flatten()
         .map(|vol| {
             let name = vol["Name"].as_str().unwrap_or_default().to_string();
-            let anonymous = vol["Labels"].get("com.docker.volume.anonymous").is_some() || (name.len() == 64 && name.chars().all(|c| c.is_ascii_hexdigit()));
+            let anonymous = vol["Labels"].get("com.docker.volume.anonymous").is_some()
+                || (name.len() == 64 && name.chars().all(|c| c.is_ascii_hexdigit()));
             let refs = vol["UsageData"]["RefCount"].as_i64().unwrap_or(0);
             Item {
                 kind: Kind::Volume,
@@ -215,13 +222,12 @@ fn df(home: &Path, kind: &str) -> Result<Value, String> {
 
 /// Images, containers and the build cache, largest first, asked for at the same time.
 pub fn report(home: &Path) -> Result<Report, String> {
-    let (images_v, containers_v, cache_v) =
-        std::thread::scope(|s| {
-            let i = s.spawn(|| df(home, "image"));
-            let c = s.spawn(|| df(home, "container"));
-            let b = s.spawn(|| df(home, "build-cache"));
-            (i.join().unwrap(), c.join().unwrap(), b.join().unwrap())
-        });
+    let (images_v, containers_v, cache_v) = std::thread::scope(|s| {
+        let i = s.spawn(|| df(home, "image"));
+        let c = s.spawn(|| df(home, "container"));
+        let b = s.spawn(|| df(home, "build-cache"));
+        (i.join().unwrap(), c.join().unwrap(), b.join().unwrap())
+    });
     let mut images = images(&images_v?);
     let mut containers = containers(&containers_v?);
     // The build cache can fail while a build prunes it; the rest is still worth showing.

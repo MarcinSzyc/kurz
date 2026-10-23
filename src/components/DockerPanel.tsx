@@ -1,158 +1,236 @@
 import { useState } from "react";
-import type { DockerItem, DockerReport } from "../lib/api";
+import type { DockerItem, DockerKind, DockerReport } from "../lib/api";
 import { formatBytes } from "../lib/format";
-import { ago, fromDocker, type TrayEntry } from "../lib/tray";
-
-/** Rows shown per group before "Show all". */
-const PREVIEW = 6;
+import { ago, dockerStatus, fromDocker, type TrayEntry } from "../lib/tray";
 
 interface Props {
   report: DockerReport | null;
   /** `null` while Docker measures them. */
   volumes: DockerItem[] | null;
   error: string | null;
+  /** Size of Docker's disk image, as scanned. */
+  diskImage: number;
   tray: TrayEntry[];
-  onToggle: (entry: TrayEntry) => void;
-  onAddMany: (entries: TrayEntry[]) => void;
+  onSet: (entries: TrayEntry[], inTray: boolean) => void;
+  onClose: () => void;
 }
 
 const sum = (items: DockerItem[]) => items.reduce((s, i) => s + i.size, 0);
 
-/** What's inside Docker's disk image, each piece removable on its own. */
-export function DockerPanel({ report, volumes, error, tray, onToggle, onAddMany }: Props) {
+interface Tab {
+  kind: DockerKind;
+  label: string;
+  desc: string;
+  items: DockerItem[];
+  kept: string;
+  loading?: boolean;
+}
+
+/** What's inside Docker's disk image, each piece removable on its own (design/clean-up-v2.html). */
+export function DockerPanel({ report, volumes, error, diskImage, tray, onSet, onClose }: Props) {
+  const [tab, setTab] = useState<DockerKind>("image");
+  const [showKept, setShowKept] = useState(false);
   const inTray = (item: DockerItem) => tray.some((e) => e.key === fromDocker(item).key);
 
-  if (error) return <div className="docker-panel"><p className="muted small">{error}</p></div>;
-  if (!report) {
+  if (error || !report) {
     return (
-      <div className="docker-panel">
-        <p className="muted small">Asking Docker what's inside…</p>
+      <div className="dk">
+        <p className="dk-wait muted">{error ?? "Asking Docker what's inside…"}</p>
       </div>
     );
   }
 
-  const groups: { title: string; desc: string; items: DockerItem[]; locked: string }[] = [
+  // Named volumes first, then the ones Docker named itself.
+  const vols = [...(volumes ?? [])].sort((a, b) => Number(a.anonymous) - Number(b.anonymous) || b.size - a.size);
+  const tabs: Tab[] = [
     {
-      title: "Images",
-      desc: "Pulled or built images. Pull or build them again when needed.",
+      kind: "image",
+      label: "Images",
+      desc: "Pulled or built images. Only images no container uses are listed; pull or build them again when needed.",
       items: report.images,
-      locked: "used by containers",
+      kept: "used by containers",
     },
     {
-      title: "Stopped containers",
-      desc: "Their own changes on top of the image. Running ones can't be removed.",
+      kind: "container",
+      label: "Containers",
+      desc: "Their own changes on top of the image. Running containers are never removed.",
       items: report.containers,
-      locked: "running",
+      kept: "running",
     },
     {
-      title: "Named volumes",
-      desc: "Data containers keep, like databases, usually from a compose project. Look before removing: this is often your data.",
-      items: (volumes ?? []).filter((v) => !v.anonymous),
-      locked: "attached to containers",
+      kind: "volume",
+      label: "Volumes",
+      desc: "Data containers keep, like databases. Not used by any container now, but often your data: look before removing.",
+      items: vols,
+      kept: "used by containers",
+      loading: volumes === null,
     },
     {
-      title: "Anonymous volumes",
-      desc: "Volumes Docker named itself, mostly left behind by containers that are gone.",
-      items: (volumes ?? []).filter((v) => v.anonymous),
-      locked: "attached to containers",
+      kind: "buildCache",
+      label: "Build cache",
+      desc: "Layers kept from docker build to speed up the next build. Safe: the next build just takes longer.",
+      items: report.buildCache ? [report.buildCache] : [],
+      kept: "",
     },
   ];
 
-  return (
-    <div className="docker-panel">
-      <p className="docker-note muted small">
-        Docker removes these itself, for good: no Trash, no Undo. Docker Desktop gives the space back to macOS over a few minutes.
-      </p>
-      {report.buildCache && (
-        <div className="docker-group">
-          <div className="docker-row">
-            <div className="rec-name">
-              <span className="rec-title">
-                <span>Build cache</span>
-                <span className="badge risk-safe">Safe</span>
-              </span>
-              <span className="rec-about">{report.buildCache.detail}. Rebuilt by the next docker build.</span>
-            </div>
-            <span className="muted small">used {ago(report.buildCache.created)}</span>
-            <span className="mono rec-size">{formatBytes(report.buildCache.size)}</span>
-            <button className={`tray-btn ${inTray(report.buildCache) ? "on" : ""}`} onClick={() => onToggle(fromDocker(report.buildCache!))}>
-              {inTray(report.buildCache) ? "✓ In tray" : "+ Add"}
-            </button>
-          </div>
-        </div>
-      )}
-      {groups.map((g) => (
-        <DockerGroup key={g.title} {...g} inTray={inTray} onToggle={onToggle} onAddMany={onAddMany} />
-      ))}
-      {volumes === null && <p className="muted small">Measuring volume sizes… Docker checks each of them, which takes a few seconds.</p>}
-    </div>
-  );
-}
+  const unused = (t: Tab) => t.items.filter((i) => !i.inUse).sort((a, b) => b.size - a.size);
+  const all = tabs.flatMap((t) => t.items);
+  const free = all.filter((i) => !i.inUse);
+  const picked = free.filter(inTray);
+  const scale = Math.max(diskImage, sum(all), 1);
+  const running = report.containers.filter((c) => c.inUse).length;
 
-function DockerGroup(props: {
-  title: string;
-  desc: string;
-  items: DockerItem[];
-  locked: string;
-  inTray: (i: DockerItem) => boolean;
-  onToggle: (e: TrayEntry) => void;
-  onAddMany: (e: TrayEntry[]) => void;
-}) {
-  const [all, setAll] = useState(false);
-  const free = props.items.filter((i) => !i.inUse);
-  const used = props.items.filter((i) => i.inUse);
-  if (props.items.length === 0) return null;
-  const shown = all ? free : free.slice(0, PREVIEW);
-  const missing = free.filter((i) => !props.inTray(i));
+  const bar = tabs.flatMap((t) => {
+    const on = sum(unused(t).filter(inTray));
+    const off = sum(unused(t)) - on;
+    const used = sum(t.items.filter((i) => i.inUse));
+    return [
+      { cls: "used", size: used, title: `${t.label} in use · ${formatBytes(used)}` },
+      { cls: "picked", size: on, title: `${t.label} selected · ${formatBytes(on)}` },
+      { cls: "free", size: off, title: `${t.label} unused · ${formatBytes(off)}` },
+    ].filter((s) => s.size / scale > 0.002);
+  });
+
+  const current = tabs.find((t) => t.kind === tab)!;
+  const rows = unused(current);
+  const kept = current.items.filter((i) => i.inUse);
+  const allOn = rows.length > 0 && rows.every(inTray);
 
   return (
-    <div className="docker-group">
-      <div className="docker-group-head">
-        <div>
-          <strong>{props.title}</strong>
-          <span className="mono muted small">
-            {" "}
-            {formatBytes(sum(free))} unused · {free.length} of {props.items.length}
+    <div className="dk">
+      <div className="dk-top">
+        <div className="dk-line">
+          <span>
+            Disk image <b className="mono">{formatBytes(diskImage)}</b> · <span className="good">{formatBytes(sum(free))} unused</span>
           </span>
-          <div className="muted small">{props.desc}</div>
+          <span className="muted">
+            Docker is running · {running} {running === 1 ? "container" : "containers"} up
+          </span>
         </div>
-        {free.length > 0 && (
-          <button className="small-btn" onClick={() => props.onAddMany(missing.map(fromDocker))} disabled={missing.length === 0}>
-            {missing.length === 0 ? "All in tray" : "Add all unused"}
+        <div className="dk-bar">
+          {bar.map((s, i) => (
+            <div key={i} className={s.cls} title={s.title} style={{ width: `${(s.size / scale) * 100}%` }} />
+          ))}
+        </div>
+        <div className="dk-legend">
+          <span>
+            <i className="used" />
+            In use, kept
+          </span>
+          <span>
+            <i className="free" />
+            Unused, can go
+          </span>
+          <span>
+            <i className="picked" />
+            Selected
+          </span>
+        </div>
+      </div>
+
+      <div className="dk-tabs">
+        {tabs.map((t) => {
+          const n = unused(t).filter(inTray).length;
+          return (
+            <button
+              key={t.kind}
+              className={`dk-tab ${tab === t.kind ? "on" : ""}`}
+              onClick={() => {
+                setTab(t.kind);
+                setShowKept(false);
+              }}
+            >
+              <span className="dk-tab-head">
+                <strong>{t.label}</strong>
+                <span className={`dk-count ${n ? (t.kind === "volume" ? "data" : "some") : ""}`}>{n ? `${n} selected` : "none"}</span>
+              </span>
+              <span className="dk-tab-size">
+                <span className="mono">{t.loading ? "…" : formatBytes(sum(unused(t)))}</span>
+                <span className="muted">{t.loading ? "measuring" : t.kind === "buildCache" ? "all unused" : `${unused(t).length} unused`}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="dk-desc">
+        <span>{current.desc}</span>
+        {rows.length > 0 && (
+          <button className="small-btn" onClick={() => onSet(rows.map(fromDocker), !allOn)}>
+            {allOn ? "Deselect all" : `Select all ${rows.length}`}
           </button>
         )}
       </div>
-      {shown.map((i) => {
-        const on = props.inTray(i);
+
+      {current.loading && <p className="dk-wait muted">Measuring volume sizes… Docker checks each of them, which takes a few seconds.</p>}
+      {!current.loading && rows.length === 0 && <p className="dk-wait muted">Nothing unused here.</p>}
+
+      {rows.map((i) => {
+        const on = inTray(i);
+        const status = dockerStatus(i);
         return (
-          <div key={i.id} className={`docker-row ${on ? "on" : ""}`}>
-            <div className="rec-name">
+          <label key={i.id} className={`dk-row ${on ? "on" : ""}`}>
+            <input type="checkbox" checked={on} onChange={() => onSet([fromDocker(i)], !on)} />
+            <i className="dk-box">{on ? "✓" : ""}</i>
+            <span className="dk-name">
               <span className="mono" title={i.name}>
                 {i.name}
               </span>
-              <span className="rec-about">
+              <span className="muted">
+                {i.project ? `${i.project} · ` : ""}
                 {i.detail}
-                {i.project ? ` · ${i.project}` : ""}
               </span>
-            </div>
-            <span className="muted small">{i.created ? `created ${ago(i.created)}` : ""}</span>
-            <span className="mono rec-size">{formatBytes(i.size)}</span>
-            <button className={`tray-btn ${on ? "on" : ""}`} onClick={() => props.onToggle(fromDocker(i))}>
-              {on ? "✓ In tray" : "+ Add"}
-            </button>
-          </div>
+            </span>
+            <span className={`dk-status ${/data/.test(status) ? "data" : /Unused|Dangling|Anonymous|Cache|Rebuildable/.test(status) ? "fine" : ""}`}>
+              {status}
+            </span>
+            <span className="muted small">{i.created ? `${i.kind === "buildCache" || i.kind === "volume" ? "used" : "created"} ${ago(i.created)}` : ""}</span>
+            <span className="mono dk-size">{formatBytes(i.size)}</span>
+          </label>
         );
       })}
-      {free.length > PREVIEW && (
-        <button className="link muted small show-all" onClick={() => setAll(!all)}>
-          {all ? "Show fewer" : `Show all ${free.length}`}
+
+      {showKept &&
+        kept.map((i) => (
+          <div key={i.id} className="dk-row kept">
+            <span />
+            <i className="dk-box" />
+            <span className="dk-name">
+              <span className="mono">{i.name}</span>
+              <span className="muted">{i.detail}</span>
+            </span>
+            <span className="dk-status">{dockerStatus(i)}</span>
+            <span />
+            <span className="mono dk-size">{formatBytes(i.size)}</span>
+          </div>
+        ))}
+
+      {kept.length > 0 && (
+        <button className="dk-kept" onClick={() => setShowKept(!showKept)}>
+          <span>
+            + {kept.length} {current.kept} ({formatBytes(sum(kept))}), kept
+          </span>
+          <span>{showKept ? "Hide" : "Show"}</span>
         </button>
       )}
-      {used.length > 0 && (
-        <p className="muted small docker-locked">
-          + {used.length} {props.locked} ({formatBytes(sum(used))}), kept.
-        </p>
-      )}
+
+      <div className="dk-foot">
+        <span className="muted">
+          Kurz asks Docker to remove these (docker rm, image rm, volume rm, builder prune). It's permanent: no Trash, no Undo.
+        </span>
+        <div>
+          <span>
+            In tray <b className="mono">{formatBytes(sum(picked))}</b>
+          </span>
+          <button className="link muted" onClick={() => onSet(picked.map(fromDocker), false)} disabled={picked.length === 0}>
+            Clear
+          </button>
+          <button className="cta small" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

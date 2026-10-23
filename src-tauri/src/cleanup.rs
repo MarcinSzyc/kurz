@@ -82,7 +82,12 @@ fn trash_destination(trash: &Path, name: &str) -> PathBuf {
     }
     let (stem, ext) = name.rsplit_once('.').map_or((name, None), |(s, e)| (s, Some(e)));
     (2..)
-        .map(|n| trash.join(match ext { Some(e) => format!("{stem} {n}.{e}"), None => format!("{stem} {n}") }))
+        .map(|n| {
+            trash.join(match ext {
+                Some(e) => format!("{stem} {n}.{e}"),
+                None => format!("{stem} {n}"),
+            })
+        })
         .find(|p| fs::symlink_metadata(p).is_err())
         .unwrap()
 }
@@ -133,7 +138,11 @@ pub fn admin_remove(paths: &[PathBuf], mode: Mode, home: &Path) -> io::Result<Ve
     let out = std::process::Command::new("/usr/bin/osascript").arg("-e").arg(script).output()?;
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr);
-        return Err(io::Error::other(if err.contains("-128") { "You cancelled the password prompt".to_string() } else { err.trim().to_string() }));
+        return Err(io::Error::other(if err.contains("-128") {
+            "You cancelled the password prompt".to_string()
+        } else {
+            err.trim().to_string()
+        }));
     }
     Ok(destinations)
 }

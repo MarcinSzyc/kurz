@@ -18,7 +18,12 @@ pub struct Owner {
 
 /// Folders in ~/Library/Caches that need explaining: (folder name, owner bundle id, label, what it is).
 const KNOWN_CACHES: &[(&str, Option<&str>, &str, &str)] = &[
-    ("Google", Some("com.google.Chrome"), "Google cache", "Caches of Google apps, mostly Chrome: pages and images saved so they load faster."),
+    (
+        "Google",
+        Some("com.google.Chrome"),
+        "Google cache",
+        "Caches of Google apps, mostly Chrome: pages and images saved so they load faster.",
+    ),
     (
         "Firefox",
         Some("org.mozilla.firefox"),
@@ -35,8 +40,18 @@ const KNOWN_CACHES: &[(&str, Option<&str>, &str, &str)] = &[
     ("node-gyp", None, "node-gyp headers", "Node.js headers downloaded to compile native npm modules. Downloaded again when needed."),
     ("CocoaPods", None, "CocoaPods cache", "Pods downloaded for iOS projects. pod install fetches them again."),
     ("SiriTTS", None, "Siri voices", "Voices downloaded for Siri and spoken content. macOS downloads them again when needed."),
-    ("com.spotify.client", Some("com.spotify.client"), "Spotify cache", "Songs Spotify streamed recently, and artwork. Offline playlists download again."),
-    ("com.tinyspeck.slackmacgap", Some("com.tinyspeck.slackmacgap"), "Slack cache", "Images and files Slack saved from your workspaces. Slack downloads them again as you scroll."),
+    (
+        "com.spotify.client",
+        Some("com.spotify.client"),
+        "Spotify cache",
+        "Songs Spotify streamed recently, and artwork. Offline playlists download again.",
+    ),
+    (
+        "com.tinyspeck.slackmacgap",
+        Some("com.tinyspeck.slackmacgap"),
+        "Slack cache",
+        "Images and files Slack saved from your workspaces. Slack downloads them again as you scroll.",
+    ),
 ];
 
 /// Apps behind some rules, so a row can say "Quit Docker first".
@@ -83,7 +98,35 @@ pub struct About {
     /// A clearer name for the row, when Kurz knows one.
     pub label: Option<String>,
     pub what: String,
+    /// What kind of thing it is, for the "What it is" column.
+    pub kind: &'static str,
+    /// What happens after removal, when it differs from the rule's.
+    pub after: Option<String>,
     pub owner: Option<Owner>,
+}
+
+/// The "What it is" column for each rule; app caches are told apart from updater leftovers.
+fn kind_of(rule_id: &str) -> &'static str {
+    match rule_id {
+        "npm-cache"
+        | "pnpm-store"
+        | "yarn-cache"
+        | "gradle-cache"
+        | "uv-cache"
+        | "pip-cache"
+        | "puppeteer-cache"
+        | "homebrew-cache"
+        | "playwright-browsers" => "Package cache",
+        "xcode-derived-data" | "idle-node-modules" | "next-build" | "turbo-cache" | "cargo-target" => "Build output",
+        "docker-data" => "Container data",
+        "android-avds" | "ios-simulators" => "Emulator",
+        "android-system-images" | "ios-device-support" => "SDK",
+        "ollama-models" => "AI models",
+        "logs" => "Logs",
+        "idle-projects" => "Project",
+        "old-downloads" => "Your files",
+        _ => "App cache",
+    }
 }
 
 /// Explains one item of a rule. `path` is the item's folder when it is a single one.
@@ -94,12 +137,18 @@ pub fn describe(rule_id: &str, reason: &str, path: Option<&Path>) -> About {
         return describe_cache(name);
     }
     let owner = RULE_OWNERS.iter().find(|(id, _)| *id == rule_id).map(|(_, bundle)| owner(bundle)).filter(|o| o.installed);
-    About { label: None, what: reason.to_string(), owner }
+    About { label: None, what: reason.to_string(), kind: kind_of(rule_id), after: None, owner }
 }
 
 fn describe_cache(folder: &str) -> About {
     if let Some((_, bundle, label, what)) = KNOWN_CACHES.iter().find(|(name, ..)| *name == folder) {
-        return About { label: Some(label.to_string()), what: what.to_string(), owner: bundle.map(owner).filter(|o| o.installed) };
+        return About {
+            label: Some(label.to_string()),
+            what: what.to_string(),
+            kind: "App cache",
+            after: None,
+            owner: bundle.map(owner).filter(|o| o.installed),
+        };
     }
     // Squirrel, the updater many Electron apps use, leaves downloads in <bundle id>.ShipIt.
     if let Some(bundle) = folder.strip_suffix(".ShipIt") {
@@ -107,7 +156,9 @@ fn describe_cache(folder: &str) -> About {
         let app = if o.installed { o.name.clone() } else { bundle.to_string() };
         return About {
             label: Some(format!("{app} update files")),
-            what: format!("Updates {app} downloaded through its updater. Installed ones are leftovers; a pending update downloads again."),
+            what: format!("Updates {app} downloaded through its updater. Installed ones are leftovers."),
+            kind: "Update files",
+            after: Some("A pending update downloads again.".to_string()),
             owner: Some(o),
         };
     }
@@ -117,17 +168,27 @@ fn describe_cache(folder: &str) -> About {
             About {
                 label: Some(format!("{} cache", o.name)),
                 what: format!("Files {} saved so it loads faster. It recreates them as needed.", o.name),
+                kind: "App cache",
+                after: None,
                 owner: Some(o),
             }
         } else {
             About {
                 label: None,
                 what: "Cache of an app that isn't installed anymore: a leftover, safe to remove.".to_string(),
+                kind: "App cache",
+                after: Some("Nothing uses it anymore.".to_string()),
                 owner: Some(o),
             }
         };
     }
-    About { label: None, what: "An app's cache folder. Apps recreate their caches as they're used.".to_string(), owner: None }
+    About {
+        label: None,
+        what: "An app's cache folder. Apps recreate their caches as they're used.".to_string(),
+        kind: "App cache",
+        after: None,
+        owner: None,
+    }
 }
 
 #[cfg(test)]
@@ -153,6 +214,7 @@ mod tests {
     fn names_updater_leftovers() {
         let about = describe_cache("com.example.never-installed.ShipIt");
         assert_eq!(about.label.as_deref(), Some("com.example.never-installed update files"));
+        assert_eq!(about.kind, "Update files");
         assert_eq!(about.owner.map(|o| o.installed), Some(false));
     }
 

@@ -382,14 +382,8 @@ pub const APPLE_DATA: &[(&str, &str)] = &[
 
 /// Folders that hold many apps' data, including Apple's: their contents can go one by one,
 /// never the folder as a whole.
-const NEVER_WHOLE: &[&str] = &[
-    "Library",
-    "Library/Application Support",
-    "Library/Containers",
-    "Library/Group Containers",
-    "Library/Preferences",
-    "Applications",
-];
+const NEVER_WHOLE: &[&str] =
+    &["Library", "Library/Application Support", "Library/Containers", "Library/Group Containers", "Library/Preferences", "Applications"];
 
 /// Under these, Apple's caches and logs come back on their own, so `com.apple.*` may go.
 const APPLE_REGENERABLE: &[&str] = &["Library/Caches/", "Library/Logs/"];

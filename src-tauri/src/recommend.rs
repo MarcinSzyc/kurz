@@ -29,6 +29,10 @@ pub struct Item {
     pub modified: i64,
     /// What it is, in a sentence; filled in by `about::describe` before reaching the UI.
     pub about: String,
+    /// What kind of thing it is, e.g. "App cache" or "Build output"; filled in like `about`.
+    pub kind: String,
+    /// What happens after removal; filled in like `about`.
+    pub after: String,
     /// The app it belongs to, when Kurz can tell.
     pub owner: Option<Owner>,
 }
@@ -163,6 +167,8 @@ fn to_items(rule: &Rule, matches: Vec<Match>, home: &Path) -> Vec<Item> {
                     size: m.size,
                     modified: m.modified,
                     about: String::new(),
+                    kind: String::new(),
+                    after: String::new(),
                     owner: None,
                 }
             })
@@ -195,6 +201,8 @@ fn to_items(rule: &Rule, matches: Vec<Match>, home: &Path) -> Vec<Item> {
                 size,
                 modified: matches.iter().map(|m| m.modified).max().unwrap_or(0),
                 about: String::new(),
+                kind: String::new(),
+                after: String::new(),
                 owner: None,
             }]
         }

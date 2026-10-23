@@ -107,9 +107,11 @@ const CATEGORIES: &[(&str, &str)] = &[
 
 fn category(raw: &str) -> String {
     let key = raw.trim_start_matches("public.app-category.");
-    CATEGORIES.iter().find(|(k, _)| *k == key).map(|(_, v)| v.to_string()).unwrap_or_else(|| {
-        key.split('-').map(|w| w[..1].to_uppercase() + &w[1..]).collect::<Vec<_>>().join(" ")
-    })
+    CATEGORIES
+        .iter()
+        .find(|(k, _)| *k == key)
+        .map(|(_, v)| v.to_string())
+        .unwrap_or_else(|| key.split('-').map(|w| w[..1].to_uppercase() + &w[1..]).collect::<Vec<_>>().join(" "))
 }
 
 /// "Copyright © 2023 Docker Inc. All rights reserved." → "Docker Inc."
@@ -346,7 +348,13 @@ fn leftovers(home: &Path, installed: &[String]) -> Vec<Leftover> {
         .into_iter()
         .filter(|(id, _)| about::app_name(id).is_none() && !about::is_running(id))
         .map(|(id, paths)| {
-            let sized: Vec<(PathBuf, u64)> = paths.into_iter().map(|p| { let s = size_of(&p); (p, s) }).collect();
+            let sized: Vec<(PathBuf, u64)> = paths
+                .into_iter()
+                .map(|p| {
+                    let s = size_of(&p);
+                    (p, s)
+                })
+                .collect();
             let largest = sized.iter().max_by_key(|(_, s)| *s).map(|(p, _)| p.clone()).unwrap();
             Leftover {
                 guess: guess_name(&id),
@@ -383,7 +391,11 @@ pub fn list(home: &Path, mut progress: impl FnMut(usize, usize, &str)) -> AppsRe
         let data = data_parts(home, &info.id, &info.name);
         let estimated = last_used[i].is_none();
         let last_opened = last_used[i].or_else(|| data.iter().map(|p| modified_of(Path::new(&p.path))).max().filter(|t| *t > 0));
-        let created = fs::metadata(&path).and_then(|m| m.created()).ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs() as i64);
+        let created = fs::metadata(&path)
+            .and_then(|m| m.created())
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs() as i64);
         let mut parts = vec![Part { kind: "Application", path: path.to_string_lossy().into_owned(), size: size_of(&path) }];
         parts.extend(data);
         apps.push(InstalledApp {
@@ -474,7 +486,12 @@ mod tests {
     fn finds_leftovers_of_removed_apps_only() {
         let tmp = tempfile::tempdir().unwrap();
         let lib = tmp.path().join("Library");
-        for dir in ["Application Support/com.example.gone-app", "Caches/com.example.gone-app", "Caches/com.vendor.updater", "Caches/com.apple.Safari"] {
+        for dir in [
+            "Application Support/com.example.gone-app",
+            "Caches/com.example.gone-app",
+            "Caches/com.vendor.updater",
+            "Caches/com.apple.Safari",
+        ] {
             fs::create_dir_all(lib.join(dir)).unwrap();
             fs::write(lib.join(dir).join("data"), vec![1u8; 700_000]).unwrap();
         }
@@ -506,12 +523,29 @@ mod tests {
         let home = PathBuf::from(std::env::var("HOME").unwrap());
         let started = std::time::Instant::now();
         let report = list(&home, |_, _, _| {});
-        println!("{} apps, {} leftovers, {} system in {:.1?}", report.apps.len(), report.leftovers.len(), report.system.len(), started.elapsed());
+        println!(
+            "{} apps, {} leftovers, {} system in {:.1?}",
+            report.apps.len(),
+            report.leftovers.len(),
+            report.system.len(),
+            started.elapsed()
+        );
         for a in report.apps.iter().take(12) {
             let size: u64 = a.parts.iter().map(|p| p.size).sum();
-            println!("{:<28} {:<10} {:<22} {:<18} {:>7.2} GB parts={} last={:?}{} inst={:?} run={} store={}",
-                a.name, a.version.clone().unwrap_or_default(), a.vendor.clone().unwrap_or_default(), a.category.clone().unwrap_or_default(),
-                size as f64 / 1e9, a.parts.len(), a.last_opened, if a.last_opened_estimated { "~" } else { "" }, a.installed, a.running, a.app_store);
+            println!(
+                "{:<28} {:<10} {:<22} {:<18} {:>7.2} GB parts={} last={:?}{} inst={:?} run={} store={}",
+                a.name,
+                a.version.clone().unwrap_or_default(),
+                a.vendor.clone().unwrap_or_default(),
+                a.category.clone().unwrap_or_default(),
+                size as f64 / 1e9,
+                a.parts.len(),
+                a.last_opened,
+                if a.last_opened_estimated { "~" } else { "" },
+                a.installed,
+                a.running,
+                a.app_store
+            );
         }
         for l in report.leftovers.iter().take(8) {
             println!("LEFT {:<40} {:<16} {:>7.2} GB {}", l.id, l.guess, l.size as f64 / 1e9, l.location);

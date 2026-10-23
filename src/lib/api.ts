@@ -108,6 +108,10 @@ export interface Recommendation {
   modified: number;
   /** What it is, in a sentence. */
   about: string;
+  /** What kind of thing it is, e.g. "App cache" or "Build output". */
+  kind: string;
+  /** What happens after removal. */
+  after: string;
   /** The app it belongs to, when Kurz can tell. */
   owner: { name: string; installed: boolean; running: boolean } | null;
 }
@@ -153,6 +157,7 @@ export const purgeCleanup = (id: string) => invoke<{ path: string; error: string
 export const fullDiskAccess = () => invoke<boolean>("full_disk_access");
 export const openFullDiskAccessSettings = () => invoke<void>("open_full_disk_access_settings");
 export const relaunch = () => invoke<void>("relaunch");
+export const showInFinder = (path: string) => invoke<void>("show_in_finder", { path });
 
 export interface AppPart {
   kind: string;

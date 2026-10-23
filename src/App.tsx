@@ -24,6 +24,7 @@ import {
   purgeCleanup,
   restoreCleanup,
   scanInfo,
+  showInFinder,
   startScan,
   type AppsReport,
   type DockerItem,
@@ -38,7 +39,7 @@ import {
   type TreeNode,
 } from "./lib/api";
 import { formatBytes, formatCount, formatDuration } from "./lib/format";
-import { GB, addEntry, autoPick, covers, fromFolder, fromRecommendation, sizeOf, type TrayEntry } from "./lib/tray";
+import { GB, addEntry, autoPick, covers, dockerSummary, fromFolder, fromRecommendation, sizeOf, type TrayEntry } from "./lib/tray";
 import { CleanUp } from "./components/CleanUp";
 import { MapView } from "./components/MapView";
 import { Tray } from "./components/Tray";
@@ -354,18 +355,43 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasDocker, docker]);
 
-  /** Adds Docker pieces, taking Docker's disk image as a whole out of the tray. */
-  function addDocker(entries: TrayEntry[]) {
+  /** Puts Docker pieces in the tray or takes them out; pieces replace Docker's disk image as a whole. */
+  function setDockerEntries(entries: TrayEntry[], on: boolean) {
+    const rest = folders.filter((f) => !entries.some((e) => e.key === f.key));
+    if (!on) return setFolders(rest);
     const dockerIds = items.filter((i) => i.rule === "docker-data").map((i) => i.id);
     setSelection(selected.filter((id) => !dockerIds.includes(id)));
-    setFolders([...folders.filter((f) => !entries.some((e) => e.key === f.key)), ...entries]);
+    setFolders([...rest, ...entries]);
+  }
+  const dockerPicked = folders.filter((f) => f.docker);
+  const dockerData = items.find((i) => i.rule === "docker-data");
+  const dockerUnused = docker
+    ? [...docker.images, ...docker.containers, ...(dockerVols ?? []), ...(docker.buildCache ? [docker.buildCache] : [])]
+        .filter((i) => !i.inUse)
+        .reduce((s, i) => s + i.size, 0)
+    : null;
+
+  /** Opens the Map at the folder holding a recommendation. */
+  function showOnMap(item: Recommendation) {
+    // The folder all its paths share, e.g. ~/Projects for node_modules in several projects.
+    let common = item.paths[0].split("/").slice(0, -1);
+    for (const path of item.paths.slice(1)) {
+      const parts = path.split("/");
+      let n = 0;
+      while (n < common.length && common[n] === parts[n]) n++;
+      common = common.slice(0, n);
+    }
+    const parent = common.join("/");
+    setPage("map");
+    open(home && parent.startsWith(home) && parent !== home ? parent : null);
   }
   const setMany = (ids: string[], on: boolean) =>
     setSelection(on ? [...new Set([...selected, ...ids])] : selected.filter((x) => !ids.includes(x)));
 
   function removeEntry(key: string) {
-    if (folders.some((f) => f.key === key)) setFolders(folders.filter((f) => f.key !== key));
-    else setSelection(selected.filter((x) => x !== key));
+    // Updates from the current state, so several removals in a row (e.g. all Docker pieces) all apply.
+    setFolders((list) => list.filter((f) => f.key !== key));
+    setSelection((ids) => ids.filter((x) => x !== key));
   }
 
   /** Adds an app or leftover to the tray (replacing what it contains), or takes it out. */
@@ -506,23 +532,32 @@ function App() {
           maxGb={maxGb}
           onGoal={(g) => {
             // Moving the slider is the user asking for this much: pick it once, then it's a plain list.
+            // Docker is picked piece by piece, so the goal leaves it out.
             setGoal(g);
-            setSelection(autoPick(items, g * GB));
+            setSelection(autoPick(items.filter((i) => i.rule !== "docker-data"), g * GB));
           }}
           onToggle={toggleRec}
           onSetMany={setMany}
+          onShowInFinder={(path) => showInFinder(path).catch(fail)}
+          onShowOnMap={showOnMap}
           tray={trayPanel(true)}
-          inside={{
+          breakdown={{
             rule: "docker-data",
+            // Without Docker running there's nothing to pick from: the disk image goes as a whole.
+            available: !dockerError,
+            picked: dockerPicked.reduce((s, e) => s + e.size, 0),
+            summary: dockerPicked.length ? "In tray: " + dockerSummary(dockerPicked).map((p) => p.label).join(", ") : null,
+            sub: dockerUnused !== null && dockerData ? `${formatBytes(dockerUnused)} unused of ${formatBytes(dockerData.size)}` : null,
             onOpen: loadDocker,
-            render: () => (
+            render: (close) => (
               <DockerPanel
                 report={docker}
                 volumes={dockerVols}
                 error={dockerError}
+                diskImage={dockerData?.size ?? 0}
                 tray={tray}
-                onToggle={(e) => (folders.some((f) => f.key === e.key) ? removeEntry(e.key) : addDocker([e]))}
-                onAddMany={addDocker}
+                onSet={setDockerEntries}
+                onClose={close}
               />
             ),
           }}

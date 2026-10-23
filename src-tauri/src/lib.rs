@@ -337,7 +337,10 @@ fn how_it_works() -> HowItWorks {
             .map(|(path, what)| (format!("~/{path}"), *what))
             .chain([
                 ("~/Library/…/com.apple.*".to_string(), "Apple apps' own data (their caches and logs may go)"),
-                ("~/Library, ~/Library/Application Support, Containers, Group Containers, Preferences".to_string(), "As a whole; single apps' folders inside may go"),
+                (
+                    "~/Library, ~/Library/Application Support, Containers, Group Containers, Preferences".to_string(),
+                    "As a whole; single apps' folders inside may go",
+                ),
             ])
             .collect(),
         categories: categories::examples().into_iter().map(|(category, examples)| CategoryView { category, examples }).collect(),
@@ -362,13 +365,15 @@ fn get_recommendations(state: State<AppState>) -> Result<Vec<recommend::Item>, S
     let mut items = recommend::recommend(&result.tree, &result.root, now());
     drop(guard);
     for item in &mut items {
-        let reason = rules::RULES.iter().find(|r| r.id == item.rule).map_or("", |r| r.reason);
+        let rule = rules::RULES.iter().find(|r| r.id == item.rule);
         let single = (item.paths.len() == 1).then(|| Path::new(&item.paths[0]));
-        let about = about::describe(item.rule, reason, single);
+        let about = about::describe(item.rule, rule.map_or("", |r| r.reason), single);
         if let Some(label) = about.label {
             item.label = label;
         }
         item.about = about.what;
+        item.kind = about.kind.to_string();
+        item.after = about.after.unwrap_or_else(|| rule.map_or("", |r| r.restore).replace('`', ""));
         item.owner = about.owner;
     }
     Ok(items)
@@ -721,12 +726,7 @@ fn run_docker_cleanup(app: &AppHandle, items: Vec<DockerRequest>) -> Result<Clea
         match docker::remove(&home, item.kind, &item.id) {
             Ok(reclaimed) => cleaned.push(history::CleanedItem {
                 size: reclaimed.unwrap_or(item.size),
-                paths: vec![history::Removed {
-                    original: format!("docker:{}", item.id),
-                    trashed: None,
-                    restored: false,
-                    in_trash: false,
-                }],
+                paths: vec![history::Removed { original: format!("docker:{}", item.id), trashed: None, restored: false, in_trash: false }],
                 label: item.label,
             }),
             Err(error) => failed.push(Failure { path: item.label, error }),
@@ -790,6 +790,16 @@ fn full_disk_access(app: AppHandle) -> Result<bool, String> {
 #[tauri::command]
 fn open_full_disk_access_settings() -> Result<(), String> {
     access::open_settings().map_err(|e| e.to_string())
+}
+
+/// Selects the item in a Finder window, as "Show in Finder" does elsewhere in macOS.
+#[tauri::command]
+fn show_in_finder(path: String) -> Result<(), String> {
+    if !Path::new(&path).is_absolute() {
+        return Err("Not a full path".into());
+    }
+    std::process::Command::new("/usr/bin/open").arg("-R").arg(&path).status().map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 /// macOS applies a new Full Disk Access grant only after the app restarts.
@@ -864,6 +874,7 @@ pub fn run() {
             remeasure_docker_data,
             docker_remove,
             open_full_disk_access_settings,
+            show_in_finder,
             relaunch,
             set_menu_bar_settings
         ])

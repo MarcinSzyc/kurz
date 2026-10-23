@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { InstalledApp, Recommendation, Risk, TreeNode } from "./api";
-import { GB, addEntry, ago, autoPick, covers, fromApp, fromDocker, fromFolder, fromLeftover, fromRecommendation, items, riskOfFolder } from "./tray";
+import { GB, addEntry, ago, autoPick, covers, dockerStatus, dockerSummary, fromApp, fromDocker, fromFolder, fromLeftover, fromRecommendation, items, riskOfFolder } from "./tray";
 
 const rec = (id: string, risk: Risk, gb: number, path = `/Users/me/${id}`): Recommendation => ({
   id,
@@ -13,6 +13,8 @@ const rec = (id: string, risk: Risk, gb: number, path = `/Users/me/${id}`): Reco
   size: gb * GB,
   modified: 0,
   about: "",
+  kind: "App cache",
+  after: "",
   owner: null,
 });
 
@@ -186,5 +188,30 @@ describe("fromDocker", () => {
     const vol = fromDocker(item("volume"));
     const folder = fromFolder(node("/Users/me/Library", "system"), "/Users/me", []);
     expect(addEntry([vol], [], [], folder).extras.map((e) => e.key)).toEqual([vol.key, folder.key]);
+  });
+});
+
+describe("dockerStatus", () => {
+  const base = { id: "x", name: "web", detail: "", size: 1, created: 0, inUse: false, project: null, anonymous: false };
+
+  it("reads the exit code of a stopped container", () => {
+    expect(dockerStatus({ ...base, kind: "container", detail: "web · Exited (137) 2 weeks ago" })).toBe("Exited (137)");
+    expect(dockerStatus({ ...base, kind: "container", inUse: true })).toBe("Running");
+  });
+
+  it("tells dangling images and possible data apart", () => {
+    expect(dockerStatus({ ...base, kind: "image", name: "<untagged> 1a2b3c" })).toBe("Dangling");
+    expect(dockerStatus({ ...base, kind: "volume", name: "shop_pgdata" })).toBe("May be your data");
+    expect(dockerStatus({ ...base, kind: "volume", name: "shop_node_modules" })).toBe("Rebuildable");
+    expect(dockerStatus({ ...base, kind: "volume", name: "abc", anonymous: true })).toBe("Anonymous");
+  });
+
+  it("counts the tray's Docker pieces per kind", () => {
+    const img = fromDocker({ ...base, kind: "image" });
+    const vol = fromDocker({ ...base, kind: "volume", id: "v", size: 4 });
+    expect(dockerSummary([img, { ...img, key: "other" }, vol])).toEqual([
+      { label: "2 images", size: 2 },
+      { label: "1 volume", size: 4 },
+    ]);
   });
 });

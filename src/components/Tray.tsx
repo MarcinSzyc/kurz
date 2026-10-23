@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { CleanMode, CleanReport, DiskInfo } from "../lib/api";
 import { formatBytes } from "../lib/format";
-import { GB, RISKS, items, type TrayEntry } from "../lib/tray";
+import { GB, RISKS, dockerSummary, items, type TrayEntry } from "../lib/tray";
 
 const total = (entries: TrayEntry[]) => entries.reduce((sum, e) => sum + e.size, 0);
 
@@ -28,9 +28,25 @@ export function Tray(props: TrayProps) {
   const [sheet, setSheet] = useState(false);
   const [purgeArmed, setPurgeArmed] = useState(false);
   const sum = total(entries);
-  const sorted = [...entries].sort((a, b) => b.size - a.size);
+  // Docker's pieces show as one row, with what kinds of pieces under it.
+  const dockerParts = entries.filter((e) => e.docker);
+  const shown: TrayEntry[] = entries.filter((e) => !e.docker);
+  if (dockerParts.length) {
+    shown.push({
+      key: "docker",
+      label: `Docker · ${items(dockerParts.length)}`,
+      location: "Docker",
+      paths: [],
+      size: total(dockerParts),
+      risk: dockerParts.some((e) => e.docker!.kind === "volume") ? "takeALook" : dockerParts.every((e) => e.risk === "safe") ? "safe" : "rebuildable",
+      category: "system",
+      parts: dockerSummary(dockerParts).map((p) => ({ kind: p.label, size: p.size })),
+    });
+  }
+  const sorted = shown.sort((a, b) => b.size - a.size);
+  const remove = (key: string) => (key === "docker" ? dockerParts.forEach((e) => props.onRemove(e.key)) : props.onRemove(key));
   const empty = entries.length === 0;
-  const own = entries.filter((e) => e.risk === "takeALook");
+  const own = entries.filter((e) => e.risk === "takeALook" && !e.docker);
   const cleanup = report?.cleanup ?? null;
   const inTrash = cleanup?.mode === "trash" && cleanup.items.some((i) => i.paths.some((p) => p.trashed && !p.restored));
   // What waits in the Trash; Docker frees its part right away.
@@ -111,7 +127,7 @@ export function Tray(props: TrayProps) {
       <div className="tray-head">
         <div className="tray-title">
           <span>Cleanup tray</span>
-          <span className="muted small">{goal ? items(entries.length) : "shared across tabs"}</span>
+          <span className="muted small">{goal ? items(sorted.length) : "shared across tabs"}</span>
         </div>
         <div className="tray-sum">
           <strong className="tray-total mono">{formatBytes(sum)}</strong>
@@ -120,7 +136,7 @@ export function Tray(props: TrayProps) {
               {goal.gb === 0 ? "no goal set" : met ? `✓ goal of ${goal.gb} GB met` : `${formatBytes(goal.gb * GB - sum)} short of goal`}
             </span>
           ) : (
-            <span className="small muted">{items(entries.length)}</span>
+            <span className="small muted">{items(sorted.length)}</span>
           )}
         </div>
         {goal ? (
@@ -152,7 +168,7 @@ export function Tray(props: TrayProps) {
             </div>
             <span className={`badge risk-${e.risk}`}>{RISKS.find((r) => r.id === e.risk)?.badge}</span>
             <span className="mono small tray-size">{formatBytes(e.size)}</span>
-            <button className="x" onClick={() => props.onRemove(e.key)} aria-label={`Remove ${e.label} from the tray`}>
+            <button className="x" onClick={() => remove(e.key)} aria-label={`Remove ${e.label} from the tray`}>
               ×
             </button>
             {e.parts && (
@@ -168,6 +184,9 @@ export function Tray(props: TrayProps) {
           </div>
         ))}
         {empty && <p className="tray-empty muted">{props.emptyHint}</p>}
+        {dockerParts.some((e) => e.docker!.kind === "volume") && (
+          <div className="note warn">Docker volumes may hold database data and are removed permanently.</div>
+        )}
         {entries.some((e) => e.key.startsWith("app:")) ? (
           <div className="note warn">
             Apps are marked “Take a look”: their settings and data go too. Untick Preferences in the app’s row to keep your settings.

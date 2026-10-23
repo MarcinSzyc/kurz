@@ -21,4 +21,6 @@ Palette: warm paper (`#f5f3ef` / cards `#fbfaf7`) in light, `#141413` / `#1b1b1a
 
 [`how-it-works.html`](how-it-works.html) is the full *How it works* modal, and [`menu-bar.html`](menu-bar.html) the *Menu bar* modal with four icon styles (Bar, Tank, Slabs, Sprite). Kurz shows commands as *Or run it yourself*, since it removes folders rather than running them, and colors only the menu bar icon, as macOS keeps the text in the system color.
 
+[`clean-up-v2.html`](clean-up-v2.html) replaces the Clean up screen of `mockup.html`: one calm table like Apps, with search, risk filters, sorting and a *Groups* switch; a row opens to *What it is* and *After removal*; Docker's row opens a breakdown with tabs. Kurz starts with nothing in the tray (the design shows a few picks), lists anonymous volumes one by one rather than as one row, and adds Docker's disk image as a whole only when Docker isn't running and can't say what's inside.
+
 [`apps.html`](apps.html) is the *Apps* tab: installed apps with their data, uninstalling with the leftovers you choose, and leftovers of removed apps. Kurz shows initials on category-tinted tiles as in the design rather than real app icons, and marks a last-opened date with `~` when Spotlight has no record and the app's data stands in.

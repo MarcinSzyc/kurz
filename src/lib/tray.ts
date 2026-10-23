@@ -196,3 +196,50 @@ export const fromDocker = (item: DockerItem): TrayEntry => ({
   category: "system",
   docker: { kind: item.kind, id: item.id },
 });
+
+/** Hue of each "What it is" kind, as in the design. */
+export const KIND_HUES: Record<string, number> = {
+  "App cache": 160,
+  "Package cache": 200,
+  "Update files": 100,
+  "Build output": 250,
+  Emulator: 230,
+  SDK: 230,
+  "AI models": 295,
+  "Container data": 280,
+  Logs: 80,
+  "Your files": 30,
+  Project: 320,
+};
+
+/** The short status shown next to a Docker item. */
+export function dockerStatus(item: DockerItem): string {
+  switch (item.kind) {
+    case "buildCache":
+      return "Unused";
+    case "image":
+      return item.inUse ? "In use" : item.name.startsWith("<untagged>") ? "Dangling" : "Unused";
+    case "container":
+      return item.inUse ? "Running" : (item.detail.match(/Exited \(\d+\)/)?.[0] ?? "Stopped");
+    case "volume":
+      if (item.inUse) return "In use";
+      if (item.anonymous) return "Anonymous";
+      if (/node_modules|vendor|deps|packages/i.test(item.name)) return "Rebuildable";
+      if (/cache|redis/i.test(item.name)) return "Cache";
+      return "May be your data";
+  }
+}
+
+/** The Docker entries of the tray, counted per kind: "3 images, 6 containers". */
+export function dockerSummary(entries: TrayEntry[]): { label: string; size: number }[] {
+  const names: [DockerItem["kind"], string, string][] = [
+    ["image", "image", "images"],
+    ["container", "container", "containers"],
+    ["volume", "volume", "volumes"],
+    ["buildCache", "build cache", "build cache"],
+  ];
+  return names.flatMap(([kind, one, many]) => {
+    const of = entries.filter((e) => e.docker?.kind === kind);
+    return of.length ? [{ label: `${of.length} ${of.length === 1 ? one : many}`, size: of.reduce((s, e) => s + e.size, 0) }] : [];
+  });
+}
