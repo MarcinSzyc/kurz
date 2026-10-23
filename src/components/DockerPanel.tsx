@@ -194,7 +194,6 @@ export function DockerPanel({ report, volumes, error, diskImage, tray, onSet, on
       {showKept &&
         kept.map((i) => (
           <div key={i.id} className="dk-row kept">
-            <span />
             <i className="dk-box" />
             <span className="dk-name">
               <span className="mono">{i.name}</span>
