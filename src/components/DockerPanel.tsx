@@ -46,7 +46,7 @@ export function DockerPanel({ report, volumes, error, diskImage, tray, onSet, on
     {
       kind: "image",
       label: "Images",
-      desc: "Pulled or built images. Only images no container uses are listed; pull or build them again when needed.",
+      desc: "Pulled or built images no running container uses; pull or build them again when needed. One made for stopped containers goes together with them.",
       items: report.images,
       kept: "used by containers",
     },
@@ -80,6 +80,19 @@ export function DockerPanel({ report, volumes, error, diskImage, tray, onSet, on
   const picked = free.filter(inTray);
   const scale = Math.max(diskImage, sum(all), 1);
   const running = report.containers.filter((c) => c.inUse).length;
+  // What the pieces don't account for: free space inside the disk image Docker hasn't given back
+  // to macOS yet, plus Docker's own files.
+  const rest = diskImage - sum(all);
+
+  /** Ticks or unticks pieces, keeping an image and the stopped containers made from it together. */
+  function set(items: DockerItem[], on: boolean) {
+    const ids = new Set(items.map((i) => i.id));
+    const linked = on
+      ? report!.containers.filter((c) => items.some((i) => i.stoppedContainers.includes(c.id)))
+      : report!.images.filter((img) => img.stoppedContainers.some((id) => ids.has(id)));
+    const unique = new Map([...items, ...linked].map((i) => [fromDocker(i).key, fromDocker(i)]));
+    onSet([...unique.values()], on);
+  }
 
   const bar = tabs.flatMap((t) => {
     const on = sum(unused(t).filter(inTray));
@@ -91,6 +104,9 @@ export function DockerPanel({ report, volumes, error, diskImage, tray, onSet, on
       { cls: "free", size: off, title: `${t.label} unused · ${formatBytes(off)}` },
     ].filter((s) => s.size / scale > 0.002);
   });
+  if (rest / scale > 0.002) {
+    bar.push({ cls: "rest", size: rest, title: `Rest of the disk image · ${formatBytes(rest)}: free space Docker hasn't given back yet, and its own files` });
+  }
 
   const current = tabs.find((t) => t.kind === tab)!;
   const rows = unused(current);
@@ -126,6 +142,12 @@ export function DockerPanel({ report, volumes, error, diskImage, tray, onSet, on
             <i className="picked" />
             Selected
           </span>
+          {rest / scale > 0.002 && (
+            <span title="Space inside the disk image that nothing listed here uses: freed space Docker hasn't given back to macOS yet, and Docker's own files. Docker Desktop shrinks it over time.">
+              <i className="rest" />
+              Not given back yet · {formatBytes(rest)}
+            </span>
+          )}
         </div>
       </div>
 
@@ -157,7 +179,7 @@ export function DockerPanel({ report, volumes, error, diskImage, tray, onSet, on
       <div className="dk-desc">
         <span>{current.desc}</span>
         {rows.length > 0 && (
-          <button className="small-btn" onClick={() => onSet(rows.map(fromDocker), !allOn)}>
+          <button className="small-btn" onClick={() => set(rows, !allOn)}>
             {allOn ? "Deselect all" : `Select all ${rows.length}`}
           </button>
         )}
@@ -171,7 +193,7 @@ export function DockerPanel({ report, volumes, error, diskImage, tray, onSet, on
         const status = dockerStatus(i);
         return (
           <label key={i.id} className={`dk-row ${on ? "on" : ""}`}>
-            <input type="checkbox" checked={on} onChange={() => onSet([fromDocker(i)], !on)} />
+            <input type="checkbox" checked={on} onChange={() => set([i], !on)} />
             <i className="dk-box">{on ? "✓" : ""}</i>
             <span className="dk-name">
               <span className="mono" title={i.name}>
@@ -228,7 +250,7 @@ export function DockerPanel({ report, volumes, error, diskImage, tray, onSet, on
           <span>
             In tray <b className="mono">{formatBytes(sum(picked))}</b>
           </span>
-          <button className="link muted" onClick={() => onSet(picked.map(fromDocker), false)} disabled={picked.length === 0}>
+          <button className="link muted" onClick={() => set(picked, false)} disabled={picked.length === 0}>
             Clear
           </button>
           <button className="cta small" onClick={onClose}>

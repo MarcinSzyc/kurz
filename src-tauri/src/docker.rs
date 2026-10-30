@@ -41,6 +41,8 @@ pub struct Item {
     pub project: Option<String>,
     /// A volume Docker named itself (`docker run -v /path` without a name).
     pub anonymous: bool,
+    /// For an image: the stopped containers made from it, which have to go before it can.
+    pub stopped_containers: Vec<String>,
 }
 
 /// Everything but volumes, which take Docker much longer to measure and come separately.
@@ -128,6 +130,7 @@ fn images(v: &Value) -> Vec<Item> {
                 in_use: used_by > 0,
                 project: project(i),
                 anonymous: false,
+                stopped_containers: Vec::new(),
             }
         })
         .collect()
@@ -156,6 +159,7 @@ fn containers(v: &Value) -> Vec<Item> {
                 in_use: matches!(state, "running" | "paused" | "restarting"),
                 project: project(c),
                 anonymous: false,
+                stopped_containers: Vec::new(),
             }
         })
         .collect()
@@ -185,6 +189,7 @@ fn volumes(v: &Value) -> Vec<Item> {
                 in_use: refs > 0,
                 project: project(vol),
                 anonymous,
+                stopped_containers: Vec::new(),
             }
         })
         .collect()
@@ -208,7 +213,34 @@ fn build_cache(v: &Value) -> Option<Item> {
         in_use: false,
         project: None,
         anonymous: false,
+        stopped_containers: Vec::new(),
     })
+}
+
+/// An image is in use only while a running container uses it. One used only by stopped containers
+/// can go together with them, so it is listed with their ids rather than kept.
+fn link_images(images: &mut [Item], containers_v: &Value) {
+    let list = containers_v["Containers"].as_array().cloned().unwrap_or_default();
+    for image in images.iter_mut() {
+        let users: Vec<&Value> = list.iter().filter(|c| c["ImageID"].as_str() == Some(image.id.as_str())).collect();
+        if users.is_empty() {
+            continue;
+        }
+        let running = users.iter().filter(|c| matches!(c["State"].as_str(), Some("running" | "paused" | "restarting"))).count();
+        image.in_use = running > 0;
+        if running == 0 {
+            image.stopped_containers = users.iter().filter_map(|c| c["Id"].as_str().map(str::to_string)).collect();
+            let names: Vec<&str> = users
+                .iter()
+                .filter_map(|c| c["Names"].as_array().and_then(|n| n.first()).and_then(Value::as_str))
+                .map(|n| n.trim_start_matches('/'))
+                .collect();
+            image.detail = format!(
+                "used only by stopped {}",
+                if names.len() == 1 { names[0].to_string() } else { format!("{} containers", names.len()) }
+            );
+        }
+    }
 }
 
 fn not_running(e: String) -> String {
@@ -228,8 +260,10 @@ pub fn report(home: &Path) -> Result<Report, String> {
         let b = s.spawn(|| df(home, "build-cache"));
         (i.join().unwrap(), c.join().unwrap(), b.join().unwrap())
     });
+    let containers_v = containers_v?;
     let mut images = images(&images_v?);
-    let mut containers = containers(&containers_v?);
+    link_images(&mut images, &containers_v);
+    let mut containers = containers(&containers_v);
     // The build cache can fail while a build prunes it; the rest is still worth showing.
     let build_cache = cache_v.ok().as_ref().and_then(build_cache);
     for list in [&mut images, &mut containers] {
@@ -325,5 +359,41 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         // No socket in a temp home: fails before any request, as does a bad id with a socket.
         assert!(remove(tmp.path(), Kind::Image, "../../etc").is_err());
+    }
+
+    #[test]
+    fn frees_images_used_only_by_stopped_containers() {
+        let mut list = images(&serde_json::json!({"Images": [
+            {"Id": "sha256:a", "RepoTags": ["web:1"], "Containers": 1, "Size": 5, "Created": 1},
+            {"Id": "sha256:b", "RepoTags": ["db:1"], "Containers": 2, "Size": 7, "Created": 1}
+        ]}));
+        link_images(
+            &mut list,
+            &serde_json::json!({"Containers": [
+                {"Id": "c1", "Names": ["/web-1"], "ImageID": "sha256:a", "State": "exited"},
+                {"Id": "c2", "Names": ["/db-1"], "ImageID": "sha256:b", "State": "running"},
+                {"Id": "c3", "Names": ["/db-old"], "ImageID": "sha256:b", "State": "exited"}
+            ]}),
+        );
+        assert_eq!(
+            (list[0].in_use, list[0].stopped_containers.clone(), list[0].detail.as_str()),
+            (false, vec!["c1".to_string()], "used only by stopped web-1")
+        );
+        assert!(list[1].in_use && list[1].stopped_containers.is_empty());
+    }
+
+    /// Prints what Kurz sees in the local Docker: `cargo test live_report -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn live_report() {
+        let home = PathBuf::from(std::env::var("HOME").unwrap());
+        let r = report(&home).unwrap();
+        let gb = |items: &[&Item]| items.iter().map(|i| i.size).sum::<u64>() as f64 / 1e9;
+        for (name, list) in [("images", &r.images), ("containers", &r.containers)] {
+            let free: Vec<&Item> = list.iter().filter(|i| !i.in_use).collect();
+            let used: Vec<&Item> = list.iter().filter(|i| i.in_use).collect();
+            println!("{name}: {} unused ({:.2} GB), {} in use ({:.2} GB)", free.len(), gb(&free), used.len(), gb(&used));
+        }
+        println!("build cache: {:?}", r.build_cache.map(|b| b.size as f64 / 1e9));
     }
 }

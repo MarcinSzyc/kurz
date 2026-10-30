@@ -175,6 +175,7 @@ describe("fromDocker", () => {
     inUse: false,
     project: "shop",
     anonymous: false,
+    stoppedContainers: [],
   });
 
   it("rates volumes as possibly your data, build cache as safe", () => {
@@ -192,7 +193,7 @@ describe("fromDocker", () => {
 });
 
 describe("dockerStatus", () => {
-  const base = { id: "x", name: "web", detail: "", size: 1, created: 0, inUse: false, project: null, anonymous: false };
+  const base = { id: "x", name: "web", detail: "", size: 1, created: 0, inUse: false, project: null, anonymous: false, stoppedContainers: [] };
 
   it("reads the exit code of a stopped container", () => {
     expect(dockerStatus({ ...base, kind: "container", detail: "web · Exited (137) 2 weeks ago" })).toBe("Exited (137)");
@@ -201,6 +202,7 @@ describe("dockerStatus", () => {
 
   it("tells dangling images and possible data apart", () => {
     expect(dockerStatus({ ...base, kind: "image", name: "<untagged> 1a2b3c" })).toBe("Dangling");
+    expect(dockerStatus({ ...base, kind: "image", stoppedContainers: ["c1"] })).toBe("Stopped container");
     expect(dockerStatus({ ...base, kind: "volume", name: "shop_pgdata" })).toBe("May be your data");
     expect(dockerStatus({ ...base, kind: "volume", name: "shop_node_modules" })).toBe("Rebuildable");
     expect(dockerStatus({ ...base, kind: "volume", name: "abc", anonymous: true })).toBe("Anonymous");

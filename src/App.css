@@ -3590,6 +3590,11 @@ button.link.strong {
   background: var(--good);
 }
 
+.dk .rest {
+  background: var(--track);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
 .dk-legend {
   display: flex;
   flex-wrap: wrap;

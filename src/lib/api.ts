@@ -227,6 +227,8 @@ export interface DockerItem {
   project: string | null;
   /** A volume Docker named itself. */
   anonymous: boolean;
+  /** For an image: the stopped containers made from it, which have to go before it can. */
+  stoppedContainers: string[];
 }
 
 /** Everything but volumes, which come separately as they take Docker longer to measure. */

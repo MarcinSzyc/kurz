@@ -218,7 +218,9 @@ export function dockerStatus(item: DockerItem): string {
     case "buildCache":
       return "Unused";
     case "image":
-      return item.inUse ? "In use" : item.name.startsWith("<untagged>") ? "Dangling" : "Unused";
+      if (item.inUse) return "In use";
+      if (item.stoppedContainers.length) return "Stopped container";
+      return item.name.startsWith("<untagged>") ? "Dangling" : "Unused";
     case "container":
       return item.inUse ? "Running" : (item.detail.match(/Exited \(\d+\)/)?.[0] ?? "Stopped");
     case "volume":

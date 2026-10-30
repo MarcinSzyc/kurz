@@ -719,6 +719,15 @@ struct DockerRequest {
 
 fn run_docker_cleanup(app: &AppHandle, items: Vec<DockerRequest>) -> Result<CleanReport, String> {
     let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    // Containers first, so images they were made from can go; the build cache last, as removing
+    // images leaves more of it unused.
+    let mut items = items;
+    items.sort_by_key(|i| match i.kind {
+        docker::Kind::Container => 0,
+        docker::Kind::Image => 1,
+        docker::Kind::Volume => 2,
+        docker::Kind::BuildCache => 3,
+    });
     let total = items.len();
     let (mut failed, mut cleaned) = (Vec::new(), Vec::new());
     for (done, item) in items.into_iter().enumerate() {

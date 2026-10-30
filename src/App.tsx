@@ -101,6 +101,7 @@ function App() {
   const [dockerVols, setDockerVols] = useState<DockerItem[] | null>(null);
   const [dockerError, setDockerError] = useState<string | null>(null);
   const dockerLoading = useRef(false);
+  const dockerGen = useRef(0);
   const [page, setPage] = useState<Page>("cleanup");
   const [theme, setTheme] = useState<Theme>(storedTheme);
 
@@ -247,8 +248,7 @@ function App() {
   async function sync() {
     if (home) refreshDisk(home);
     setAppsReport(null);
-    setDocker(null);
-    setDockerVols(null);
+    forgetDocker();
     setSyncs((n) => n + 1);
     if (node) open(node.path);
     await refreshRecommendations().catch(fail);
@@ -336,24 +336,41 @@ function App() {
 
   /** Asks Docker what's inside: the quick part and the volumes, which take longer, side by side. */
   function loadDocker() {
-    if (docker || dockerLoading.current) return;
+    // Each ask has a number; answers to an older one (e.g. from before a sync) are dropped.
+    const gen = ++dockerGen.current;
     dockerLoading.current = true;
     setDockerError(null);
-    const quick = dockerReport().then(setDocker, (e) => setDockerError(String(e)));
+    const current = () => gen === dockerGen.current;
+    const quick = dockerReport().then(
+      (r) => current() && setDocker(r),
+      (e) => current() && setDockerError(String(e)),
+    );
     // The scan's size for Docker's folder goes stale as Docker frees space on its own.
     remeasureDockerData().catch(() => {});
-    const vols = dockerVolumes().then(setDockerVols, () => setDockerVols([]));
+    const vols = dockerVolumes().then(
+      (v) => current() && setDockerVols(v),
+      () => current() && setDockerVols([]),
+    );
     Promise.allSettled([quick, vols]).then(() => {
-      dockerLoading.current = false;
+      if (current()) dockerLoading.current = false;
     });
+  }
+
+  /** Forgets what Docker said, so the next look asks again. */
+  function forgetDocker() {
+    dockerGen.current++;
+    dockerLoading.current = false;
+    setDocker(null);
+    setDockerVols(null);
+    setDockerError(null);
   }
 
   // Start asking as soon as Docker shows up in the recommendations, so it's ready when opened.
   const hasDocker = items.some((i) => i.rule === "docker-data");
   useEffect(() => {
-    if (hasDocker && !docker) loadDocker();
+    if (hasDocker && !docker && !dockerLoading.current) loadDocker();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasDocker, docker]);
+  }, [hasDocker, docker, syncs]);
 
   /** Puts Docker pieces in the tray or takes them out; pieces replace Docker's disk image as a whole. */
   function setDockerEntries(entries: TrayEntry[], on: boolean) {
